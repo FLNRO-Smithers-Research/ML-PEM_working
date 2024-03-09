@@ -1,0 +1,39 @@
+---
+title: "00_folder_set_up"
+author: "G. Perkins"
+date: "30/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script will generate the base folders required for the PEM project. 
+Run this script first, You will need to name the aoi only.
+
+Note when naming AOI avoid spaces, and use capitals to distinguish between names if desired. i.e DateCreek or WilliamsLake
+
+
+```{r}
+
+source("./_functions/setup_folder_structure.R")
+
+
+# specify the name of the study area
+AOI <- "KIC_SW"
+
+# run the function
+setupfolders(AOI)
+
+
+```
+
+
+You will need to save the base data in the following folders: 
+
+1) AOI - save to : "NAMEOFAOI_AOI/0_raw_inputs/base_layers/"
+2) RAW LIDAR - save to: "NAMEORAOI_AOI/0_raw_inputs/dem/
+
+Note if you have more up to date data for Base lasyers than those available through the BC data catalogue (ie. Bec Layers) save them in the base_layers folder. 
+
