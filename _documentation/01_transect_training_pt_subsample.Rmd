@@ -1,0 +1,109 @@
+---
+title: "01_Training Points Subsampling Method"
+author: "G. Perkins"
+date: "27/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Training points subsampling 
+
+Data collected using transect sampling method (traverse of triangle 250m x 250 x 250m) can be subset using various methods to provide training point samples for PEM modeling. 
+
+A number of methods will be tested to assess the influence on internal model accuracy, map accuracy and sampling efficiency. These methods are broadly grouped into 1) distance sampling and 2) clhs sampling of high frequency mapunits. 
+
+
+
+### Processing Raw Field Data. 
+
+Field data collected using Avenza is converted into line segments using script for [Deception] <https://github.com/bcgov-c/BEC_DevExchange_Work/blob/master/04a_TrainingPt_TransectImport_Deception.Rmd>. This process creates line segment attributed to the point call. Initial testing was conducted using tracklogs rather that point to point segment however due to inconsistency and missing data with tracklog data this method was not able to be consistently tested. 
+
+![Fig.1: Raw transect data and tracklog.](./_images/01_raw_pt_track_data.png)
+
+![Fig.2: Processed data and transects.](./_images/01_processed_transect.png)
+
+#### Subsampling from the line segements (distance)
+
+Distance subsampling was conducted at 5, 30, and 50m intervals. For each segment at least one sample is sampled irrespective of the length of segment. ie a 10m segment will be sampled twice for a 5m distnace and once for a 30 or 50m distance sample.
+
+![Fig.3: Distance subsampling (5m, 30m).](./_images/01_30_50msubsample.png)
+
+
+#### Subsampling based on clhs sampling
+
+Once the attributed line segments have been created this is overlaid with the fine resolution raster (2.5m). This provides approximately 600 potential training points per transect. 
+
+![All potential training points.](./_images/01_all_pt_2.5m.png)
+
+We used Latin Hyper Cube sampling (cLHS) subsampling per map unit per BGC. This downsampled very common site series / mapunits using clhs. An initial random forest was run per BGC to determine the top 10 variables (using dem derived stand level variables) to be used for the cLHS. Sampling was conducted at 250, 500 and 1000 sample point threshold. As some mapunits were uncommon on the landscape the imbalance between points increased with higher threshold. 
+
+
+![250 threshold clhs](./_images/01_clhs_subsample_250.png)
+![1000 threshold clhs](./_images/01_clhs_subsample_1000.png)
+
+Q for discussion: 
+What is the influence of spatial autocorrelation using clhs subsampling mathod for uncommon sites? Review of points suggests high clumping for uncommon sites even at 250pts (ie ESSFmcw_)
+
+
+
+
+### Comparison of training point subsample method. 
+
+Results from the multiple runs 
+
+
+
+
+
+
+### Training point Curves: 
+
+
+Develop a curve of latin hypercube sampling 
+
+Sample % of training point 
+
+no of points sampled x axis. Curve per sample design. 
+
+out put for training point select. 
+
+Talk to Kiri about that - balanced set of different options 
+
+Balance specificify with sensitivity = optimise the crossing points 
+
+
+
+```{r}
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

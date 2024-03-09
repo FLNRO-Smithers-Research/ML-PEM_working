@@ -1,0 +1,625 @@
+---
+title: "04_Repeat_sample_sites"
+author: "G. Perkins"
+date: "23/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Repeat sampling. 
+
+To assess the variability of spatial and aspatial accuracy between individual samplers we conducted repeat samples of the same transect at Deception AOI and Boundary AOI. 
+
+At Deception field site, multiple transects were repeated by several ecologists of various experience. These were conducted in 2019 and 2020. 
+
+Repeat samples were stored here:"BEC_DevExchange_Work\Deception_AOI\2_sample_design\stage1_repeat_samples"
+
+Six transects (3 pairs were repeated). These includes samples collected in Stage 1 and Stage 2 SBSmc2 variant.  
+
+          SBSmc2_7.1_21_cLHS    - 2020-08-10 (EAC)
+          SBSmc2_7.1_21_cLHS    - 2020-07-20 (AJD)
+
+          SBSmc2_7.1_21_N       - 2020-08-10 (WHM)
+          SBSmc2_7.1.21_N       - 2020-07-20 (AHC)
+        	
+        	SBSmc2_5.4_24_cLHS    - 2019-08-06 (AJD)
+        	SBSmc2_5.4_24_cLHS    - 2020-08-11 (EAC)
+        	
+        	SBSmc2_5.4_24_S       - 2019-08-06 (AHC)
+        	SBSmc2_5.4_24_S       - 2020-08-11 (WHM)
+        	
+        	SBSmc2_2.5_10_clhs    - 2020-08-11 - (s2-m2) (EAC)
+        	SBSmc2_2_5_10_clhs    - 2020-08-11 - WHM)
+        	
+          SBSmc2_1.4_4_NE (S1)  - 2020-08-11 (WHM)
+          SBSmc2_1.4_4_NE (S1)  - 2019-07-26 (AJD)
+  
+  
+We compared results for these paired comparisons at a 2.5m and 5m pixal resolution. For each of these scales we compares the aspatial and spatial comparison at a site series level. 
+
+
+```{r, include = FALSE, eval = FALSE}
+Boundary 
+
+Repeat samples : 
+	- MSdm1_m2_17 - PAM -WILL
+  - IDFdm1_m2_1 - DF - EC
+
+![Fig 1: Example of repeat site (SBS2_5.4_24)](./_images/repeast_sample_transects.jpg){width=50%}
+
+```
+
+Three repeat samples were conducted on this pair of transects with point locations and tracks shown below. 
+
+![Fig 2: Data collection at repeat site (SBS2_5.4_24)](./_images/repeat_sample1.jpg){width=25%} 
+![Fig2: Data collection at repeat site (SBS2_5.4_24)](./_images/repeat_sample2.jpg){width=30%}
+![Fig3: Data collection at repeat site (SBS2_5.4_24)](./_images/repeat_sample3.jpg){width=30%}
+
+![Fig4: Tracks at repeat site (SBS2_5.4_24)](./_images/repeat1_alltracks.jpg){width=30%}       ![Fig4: Tracks at repeat site (SBS2_5.4_24)](./_images/repeat2_alltracks.jpg){width=30%}
+
+Comparison of the tracks showed reasonable close adherence to the line with some minor exceptions. 
+
+```{r, include = FALSE, warnings = FALSE, message=FALSE}
+
+library(tidyverse)
+library(raster)
+library(fasterize)
+library(sf)
+library(clhs)
+library(tools)
+library(stringr)
+library(lwgeom)
+library(dplyr)
+#library(ranger)
+library(foreach)
+library(scales)
+library(stringr)
+
+
+AOI <- "Deception"
+res <- 2.5
+
+AOI_dir <- file.path("..", paste0(AOI,"_AOI"))
+#AOI_dir <- file.path(paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+trans_layout <- file.path(AOI_dir, "2_sample_design", "stage1_repeat_samples", "transect_layout")
+
+trans_data <- file.path(AOI_dir, "2_sample_design", "stage1_repeat_samples", "transect_data") 
+
+output_pnts_dir <- file.path(AOI_dir,"2_sample_design", "stage1_repeat_samples", "outputs")
+
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")))
+
+res_folder <- paste0(res, "m")
+
+if(!dir.exists(output_pnts_dir)) dir.create(output_pnts_dir, recursive = TRUE)
+
+```
+
+
+```{r Functions, include = FALSE, warnings = FALSE, message=FALSE}
+source(here::here('_functions', 'extend_lines.R'))
+source(here::here('_functions', 'make_lines.R'))
+source(here::here('_functions', 'transect_sample.R'))
+source(here::here('_functions', 'multiline_to_line.R'))
+
+```
+
+
+
+```{r import base files to run analysis, tidy = TRUE, warning=FALSE, include = FALSE}
+# import base raster
+
+template <- file.path(cov_dir, "2.5m","dah.tif")
+
+raster_template <- raster("../Deception_AOI/1_map_inputs/covariates/2.5m/dah.tif")
+raster_template5 <- raster("../Deception_AOI/1_map_inputs/covariates/5m/dah.tif")
+
+# import the layout file 
+transect_layout <- st_read("../Deception_AOI/2_sample_design/stage1_repeat_samples/transect_layout/combined_repeat_samples.gpkg")
+
+transect_layout_buf <- st_buffer(transect_layout, 10)
+
+```
+
+
+```{r prepare raw data (unzip data and split into points and lines), eval = FALSE, include = FALSE}
+
+points <- list.files(trans_data, pattern = ".gpkg$", full.names = TRUE)
+
+```
+
+
+```{r import transect point data, tidy = TRUE, warning=FALSE, include = FALSE, eval = FALSE}
+points = points[6:17]
+
+all_points <- foreach(x = points, .combine = rbind) %do% {
+   #x <- points[1]
+   points_read <- st_read(x, quiet = TRUE) %>%
+    st_transform(3005) %>% 
+    st_zm() %>% 
+    rename_all(.funs = tolower) %>%
+    mutate(mapunit1 = x2mapunit,
+           mapunit2 = x4mapunit2,
+           point_type = desc, 
+           observer = x1observer) %>%
+    st_join(., transect_layout_buf, join = st_intersects) %>%
+    rename_all(.funs = tolower) %>%
+    dplyr::select(name, mapunit1, mapunit2, point_type, id, timestamp, observer) %>%
+    mutate(order_id = gsub("Placemark ", "", name)) %>%
+     group_by(timestamp) %>%
+    arrange(as.numeric(order_id)) %>%
+     ungroup() 
+   
+    processed_transects <- make_lines(GPSPoints = points_read, 
+                                    Transects = transect_layout, 
+                                    method = "pts2lines",  
+                                    tBuffer = 20, 
+                                    PROJ = 3005) %>% 
+    mutate(mapunit12 = paste0(mapunit1,"_", mapunit2)) %>%
+    mutate(mapunit12 = gsub("_NA","", mapunit12)) %>%
+    dplyr::select(-TID, ID)
+
+   st_write(processed_transects,  file.path(output_pnts_dir, gsub(".gpkg", ".shp", paste(basename(x)))), delete_layer = TRUE)
+   
+}
+
+
+```
+
+ 
+```{r convert data to raster, eval = FALSE, include = FALSE}
+# convert the vector data to raster for sampling. Build key which retains the primary and secondary call 
+
+flist <- list.files(output_pnts_dir, pattern = ".shp$", full.names = T)
+flist <- flist[2:13]
+
+all_lines <- foreach(x = flist, .combine = rbind) %do% {
+    #x <- points2[6]
+     print(x)
+     # when all the points are consolidated into a single geopackage 
+     points_read <- st_read(x, quiet = TRUE) %>%
+       dplyr::mutate(file.name = print(x)) %>%
+     st_transform(3005) }
+
+# cross check values with AOI key 
+raster_key <- function(lines, mapunit12){
+  
+  map_key <- lines %>%
+    dplyr::select(!!sym(mapunit12)) %>%
+    st_drop_geometry() %>%
+    distinct() %>%
+    mutate(mapunit_no = seq(1:nrow(.)))
+}
+# create a key for raster id values
+map_key <- raster_key(all_lines, "mapunit12")
+
+lines <- all_lines %>% 
+    dplyr::select(c("id_1", "mapunit1", "mapunit2", "mapunit12","timestamp", "observer", "file.name")) 
+
+
+# extract each trasnect and process individually using global key. 
+ 
+all_calls <- foreach(ii = unique(lines$file.name), .combine = rbind) %do% {
+  #ii <-  unique(lines$file.name)[1]
+  id_name <- gsub(".shp","",basename(ii))
+  
+  lines_part <- lines %>%
+    filter(file.name == ii)
+  
+  lBuff <- lines_part %>% 
+    dplyr::group_by(mapunit12) %>%
+    dplyr::summarise() %>%
+    sf::st_buffer(., dist = 2.5, endCapStyle = "FLAT", joinStyle = "MITRE") %>%
+    sf::st_cast(.,"MULTIPOLYGON") %>%
+    dplyr::mutate(mapunit12 = as.factor(mapunit12)) %>%
+    dplyr::left_join(., map_key)
+  
+# note need to have a 2.5 m template raster or generating rasters is incomplete 
+  rastAll <- fasterize(lBuff, raster_template, field = "mapunit_no")
+
+  raster_points_xy <- as.data.frame(rasterToPoints(rastAll)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 3005) %>%
+  merge(map_key, by.x = names(rastAll), by.y = "mapunit_no") %>% 
+  st_join(st_buffer(transect_layout_buf, 10)) %>% 
+  cbind(st_coordinates(.)) %>% 
+  distinct(.keep_all = TRUE) %>% 
+  rename_all(.funs = tolower) %>%
+  separate(mapunit12, "_(?=[^_]*$)",
+           into = c("mapunit1", "mapunit2"), 
+           remove = TRUE) %>% 
+  dplyr::select(mapunit1, mapunit2, x, y, id) %>%
+  dplyr::mutate(file_name = id_name)
+
+}
+
+#st_write(all_calls, file.path(output_pnts_dir, "repeat_cleaned_all_pts.shp"), delete_layer = #TRUE)
+
+# tidy names 
+raster_points_xy <- all_calls %>%
+  st_transform(3005) %>%
+  rename_all(.funs = tolower) %>%
+  dplyr::select_if(names(.) %in% c("x", "y", "mapunit1", "mapunit2", "id", "file_name")) %>%
+  #distinct() %>%
+  mutate(mapunit2 = gsub("_", "/", mapunit2), 
+         mapunit1 = gsub("_", "/", mapunit1)) %>%
+  left_join(map.key, by = c("mapunit1" = "FieldCall")) %>%
+  dplyr::select(x, y, MapUnit, mapunit2, id ,file_name) %>%                         
+  dplyr::rename(mapunit1 = MapUnit) %>%
+  left_join(map.key, by = c("mapunit2" = "FieldCall")) %>%
+  dplyr::select(x, y, mapunit1, MapUnit, id ,file_name) %>% 
+  dplyr::rename(mapunit2 = MapUnit) %>%
+  mutate(mapunit2 = ifelse(mapunit1 == mapunit2, NA, mapunit2)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 3005) %>%
+  drop_na(mapunit1)
+
+
+st_write(raster_points_xy, file.path(output_pnts_dir, "repeatsamples_final.shp"), delete_layer = TRUE)
+
+```
+
+
+```{r Repeat with a 5m raster cell size, include = FALSE, eval = FALSE}
+all_calls <- foreach(ii = unique(lines$file.name), .combine = rbind) %do% {
+  #ii <-  unique(lines$file.name)[1]
+  id_name <- gsub(".shp","",basename(ii))
+  
+  lines_part <- lines %>%
+    filter(file.name == ii)
+  
+  lBuff <- lines_part %>% 
+    dplyr::group_by(mapunit12) %>%
+    dplyr::summarise() %>%
+    sf::st_buffer(., dist = 2.5, endCapStyle = "FLAT", joinStyle = "MITRE") %>%
+    sf::st_cast(.,"MULTIPOLYGON") %>%
+    dplyr::mutate(mapunit12 = as.factor(mapunit12)) %>%
+    dplyr::left_join(., map_key)
+  
+# note need to have a 2.5 m template raster or generating rasters is incomplete 
+  rastAll <- fasterize(lBuff, raster_template5, field = "mapunit_no")
+
+  raster_points_xy <- as.data.frame(rasterToPoints(rastAll)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 3005) %>%
+  merge(map_key, by.x = names(rastAll), by.y = "mapunit_no") %>% 
+  st_join(st_buffer(transect_layout_buf, 10)) %>% 
+  cbind(st_coordinates(.)) %>% 
+  distinct(.keep_all = TRUE) %>% 
+  rename_all(.funs = tolower) %>%
+  separate(mapunit12, "_(?=[^_]*$)",
+           into = c("mapunit1", "mapunit2"), 
+           remove = TRUE) %>% 
+  dplyr::select(mapunit1, mapunit2, x, y, id) %>%
+  dplyr::mutate(file_name = id_name)
+
+}
+
+# tidy names 
+raster_points_xy <- all_calls %>%
+  st_transform(3005) %>%
+  rename_all(.funs = tolower) %>%
+  dplyr::select_if(names(.) %in% c("x", "y", "mapunit1", "mapunit2", "id", "file_name")) %>%
+  #distinct() %>%
+  mutate(mapunit2 = gsub("_", "/", mapunit2), 
+         mapunit1 = gsub("_", "/", mapunit1)) %>%
+  left_join(map.key, by = c("mapunit1" = "FieldCall")) %>%
+  dplyr::select(x, y, MapUnit, mapunit2, id ,file_name) %>%                         
+  dplyr::rename(mapunit1 = MapUnit) %>%
+  left_join(map.key, by = c("mapunit2" = "FieldCall")) %>%
+  dplyr::select(x, y, mapunit1, MapUnit, id ,file_name) %>% 
+  dplyr::rename(mapunit2 = MapUnit) %>%
+  mutate(mapunit2 = ifelse(mapunit1 == mapunit2, NA, mapunit2)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 3005) %>%
+  drop_na(mapunit1)
+
+
+st_write(raster_points_xy, file.path(output_pnts_dir, "repeatsamples_final5.shp"), delete_layer = TRUE)
+```
+
+
+```{r, include = FALSE}
+
+## Comparison at 2.5m resolution 
+
+allpts <- st_read(file.path(output_pnts_dir, "repeatsamples_final.shp"))  
+
+# calculate the proportion of mapunit 1 (aspatial)
+
+transect_total <- allpts %>%
+  group_by(file_name) %>%
+  mutate(transect_sum = n()) %>%
+  st_drop_geometry() %>%
+  dplyr::select(file_name, transect_sum)%>%
+  distinct()
+
+aspatial_proportion <- allpts %>%
+  st_drop_geometry() %>%
+  group_by(file_name, mapunit1) %>%
+  summarise(total = n()) %>%
+  left_join(transect_total) %>%
+  mutate(prop = total/transect_sum *100) %>%
+  mutate(site = substring(file_name, 1, 15))
+
+
+prop_plot <- ggplot(aspatial_proportion, 
+                    aes(x = mapunit1, y = prop, fill = file_name)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ site) + 
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90))
+
+# calculate the overall overlap for mapunit 1 (aspatial)
+
+aspatial_sum <- aspatial_proportion %>%
+  dplyr::select(file_name, site)%>%
+  distinct() 
+
+id = rep(c("site1", "site2"), times = length(unique(aspatial_sum$site)))
+  
+aspatial_sum$id = id
+
+aspatial <- aspatial_proportion %>%
+  left_join(aspatial_sum) %>%
+  ungroup() %>%
+  dplyr::select(-file_name)
+
+aspatial_sum1 <- aspatial %>%
+  dplyr::select(-total, -transect_sum) %>%
+  pivot_wider(names_from = id, values_from = prop) %>%
+  rowwise() %>%
+  mutate_all(~replace(., is.na(.), 0)) %>%
+  mutate(min_overlap = min(site1, site2)) %>%
+  group_by(site) %>%
+  summarise(overlap_2.5 = round(sum(min_overlap),0))
+
+aspatial_sum1
+
+```
+
+```{r,include = FALSE}
+allpts5 <- st_read(file.path(output_pnts_dir, "repeatsamples_final5m.shp"))  
+
+# calculate the proportion of mapunit 1 (aspatial)
+
+transect_total5 <- allpts5 %>%
+  group_by(file_name) %>%
+  mutate(transect_sum = n()) %>%
+  st_drop_geometry() %>%
+  dplyr::select(file_name, transect_sum)%>%
+  distinct()
+
+aspatial_proportion5 <- allpts5 %>%
+  st_drop_geometry() %>%
+  group_by(file_name, mapunit1) %>%
+  summarise(total = n()) %>%
+  left_join(transect_total5) %>%
+  mutate(prop = total/transect_sum *100) %>%
+  mutate(site = substring(file_name, 1, 15))
+
+
+prop_plot5 <- ggplot(aspatial_proportion5, 
+                    aes(x = mapunit1, y = prop, fill = file_name)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ site) + 
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90))
+  
+
+# calculate the overall overlap for mapunit 1 (aspatial)
+
+aspatial_sum5 <- aspatial_proportion5 %>%
+  dplyr::select(file_name, site)%>%
+  distinct() 
+
+id = rep(c("site1", "site2"), times = length(unique(aspatial_sum5$site)))
+  
+aspatial_sum5$id = id
+
+aspatial5 <- aspatial_proportion5 %>%
+  left_join(aspatial_sum5) %>%
+  ungroup() %>%
+  dplyr::select(-file_name)
+
+
+aspatial_sum55 <- aspatial5 %>%
+  dplyr::select(-total, -transect_sum) %>%
+  pivot_wider(names_from = id, values_from = prop) %>%
+  rowwise() %>%
+  mutate_all(~replace(., is.na(.), 0)) %>%
+  mutate(min_overlap = min(site1, site2)) %>%
+  group_by(site) %>%
+  summarise(overlap_5m = round(sum(min_overlap),0))
+
+aspatial_sum55
+
+```
+
+
+
+## Aspatial comparison
+
+Aspatial comparison was carried out to assess the proportion of calls per site series per transect (equivalent to traditional AA metrics). Note not all transects overlaped the same exact ground so aspatial comparisons were general metrics. 
+
+
+
+![Fig3: Data collection at repeat site (SBS2_5.4_24)](./_images/repeat_sample_deception_processed.jpg){width=65%}
+Comparison of proportion of calls: 
+
+Overall the proportion of calls within the transect were quite high 
+
+
+```{r, eval = TRUE, echo = FALSE, fig.cap= "Fig 1: comparsison of proportion of site series per transect at 1) 2.5m"}
+prop_plot
+
+```
+
+
+```{r, eval = TRUE, echo = FALSE, fig.cap= "Fig 2: comparsison of proportion of site series per transect at 5m resolution"}
+
+prop_plot5
+```
+
+
+
+Comparisons at different scales made minimal difference to the overall aspatial % overlap
+
+```{r, echo = FALSE, eval = TRUE, results = "asis"}
+as_out <- left_join(aspatial_sum1, aspatial_sum55, by = "site")
+
+knitr::kable(as_out) 
+
+```
+
+## Spatial explicit comparison: 
+
+We compared the direct overlap or calls for points which were placed on the same location (2.5 and 5m resolution) In this comparison we only included the xy locations which overlapped. Hence all % values are based on the total % overlapped, not the total transect. 
+
+```{r 2.5 m spatial assessment, include = FALSE}
+spat <- allpts %>%
+  left_join(aspatial_sum, by = "file_name") %>%
+  ungroup() %>%
+  dplyr::select(-file_name, mapunit2)%>%
+  st_drop_geometry()
+
+# calculate the proportion of overlap
+spatt <- spat %>% 
+  group_by(x,y, site) %>%
+  summarise(sum = n())%>%
+  ungroup() %>%
+  group_by(site, sum) %>%
+  count()
+
+spatt <- spatt %>%
+  pivot_wider(names_from = sum, values_from = n) %>%
+  mutate(total = sum(`1`, `2`)) %>%
+  rowwise() %>%
+  mutate(overlap_pc = round(`2`/total*100 ),0) %>%
+  dplyr::select(site, overlap_pc)
+  
+# calculate the proportion of spatial matches 
+twosites <- spat %>% 
+  group_by(x,y, site) %>%
+  summarise(sum = n()) 
+
+spat2 <- spat %>%
+  left_join(twosites) %>%
+  filter(sum == 2) %>%
+  dplyr::select(-sum, -id.x, - mapunit2) %>%
+  ungroup()
+
+spat22 <- spat2 %>%
+  group_by(x,y, site) %>%
+  pivot_wider(names_from ="id.y", values_from = "mapunit1") %>%
+  rowwise() %>%
+  mutate(matching = ifelse(site1 == site2, 1, 0 ))
+
+spat_matching <- spat22 %>%
+  group_by(site, matching)%>%
+  summarise(count = n()) %>%
+  pivot_wider(names_from ="matching", values_from = "count") %>%
+  rowwise() %>%
+  mutate(total = `0` + `1`) %>%
+  mutate(correct_pc = round(`1`/total * 100, 0 )) %>%
+  dplyr::select(-c(`0`,`1`))
+
+spat_summary <- spat22 %>%
+  group_by(site, site1,site2) %>%
+  summarise(count = n())
+
+all_spat_summary <- spat22 %>%
+  group_by(site1,site2) %>%
+  summarise(count = n())
+
+cm <- ggplot(all_spat_summary, aes(x=site1, y=site2, fill=count)) +
+  geom_tile() + theme_bw() + coord_equal() +
+  scale_fill_distiller(palette="Greens", direction=1) +
+  guides(fill=F) + # removing legend for `fill`
+  labs(title = "Spatially explicit calls") + # using a title instead
+  geom_text(aes(label=count), color="black") +# printing values + 
+  theme(axis.text.x = element_text(angle = 90))
+cm
+
+# spat_wide <- spat_summary %>%
+#   ungroup() %>%
+#   dplyr::select(-site)%>%
+#   pivot_wider(names_from ="site2", values_from = "count", values_fn = sum)
+
+```
+
+
+```{r 5 m spatial assessment, include = FALSE}
+spat5 <- allpts5 %>%
+  left_join(aspatial_sum5, by = "file_name") %>%
+  ungroup() %>%
+  dplyr::select(-file_name, mapunit2)%>%
+  st_drop_geometry()
+
+# calculate the proportion of overlap
+spatt5 <- spat5 %>% 
+  group_by(x,y, site) %>%
+  summarise(sum = n())%>%
+  ungroup() %>%
+  group_by(site, sum) %>%
+  count()
+
+spatt5 <- spatt5 %>%
+  pivot_wider(names_from = sum, values_from = n) %>%
+  mutate(total = sum(`1`, `2`)) %>%
+  rowwise() %>%
+  mutate(overlap_pc = round(`2`/total*100 ),0) %>%
+  dplyr::select(site, overlap_pc)
+  
+# calculate the proportion of spatial matches 
+twosites5 <- spat5 %>% 
+  group_by(x,y, site) %>%
+  summarise(sum = n()) 
+
+spat25 <- spat5 %>%
+  left_join(twosites5) %>%
+  filter(sum == 2) %>%
+  dplyr::select(-sum, -id.x, - mapunit2) %>%
+  ungroup()
+
+spat225 <- spat25 %>%
+  group_by(x,y, site) %>%
+  pivot_wider(names_from ="id.y", values_from = "mapunit1") %>%
+  rowwise() %>%
+  mutate(matching = ifelse(site1 == site2, 1, 0 ))
+
+spat_matching5 <- spat225 %>%
+  group_by(site, matching)%>%
+  summarise(count = n()) %>%
+  pivot_wider(names_from ="matching", values_from = "count") %>%
+  rowwise() %>%
+  mutate(total = `0` + `1`) %>%
+  mutate(correct_pc_5 = round(`1`/total * 100,0)) %>%
+  dplyr::select(-c(`0`,`1`))
+
+spat_summary5 <- spat225 %>%
+  group_by(site, site1,site2) %>%
+  summarise(count = n())
+
+spat_wide5 <- spat_summary5 %>%
+  ungroup() %>%
+  dplyr::select(-site)%>%
+  pivot_wider(names_from ="site2", values_from = "count", values_fn = sum)
+
+```
+
+
+```{r, results = "asis", echo = FALSE}
+
+spat_all <- left_join(spat_matching, spat_matching5, by= "site")
+
+knitr::kable(spat_all) 
+
+```
+
+```{r, echo = FALSE}
+cm
+
+```
+
+
+### Boundary comparison - to be added

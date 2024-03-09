@@ -1,0 +1,151 @@
+---
+title: "00_Accuracy_notes"
+author: "G. Perkins"
+date: "26/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, message = FALSE, warning=FALSE}
+#library(dplyr)
+
+library(tidyverse)
+library(foreach)
+library(here)
+
+```
+
+## Summary: Accuracy measures 
+
+Model and Map accuracy is critical to determine model performance and track the effect of 
+parameters (i.e. covariates, training point sampling). 
+
+The main methods include ; 
+- 1) training/testing, 
+- 2) internal model validation (cv methods)
+- 3) map accuracy 
+
+
+### 1) Training and Testing split
+
+A critical component of model assessment is the initial training and testing data split. This ensures a portion of the data is set aside for completing the true assessment of model fit, not based on any information provided in the training data set. The proportion of the split can be adjusted but is currently set to 0.8 for training and 0.2 for testing. 
+
+
+### 2) Internal model validation
+
+We are implementing a 3 fold x 5 repeat cross validation. This may be adjusted to 10 fold testing as needed although initial testing using 10 fold caused errors with low training point samples for uncommon mapunits. 
+
+Internal model validation metrics are often similar but slightly higher than test validation metrics, given the test set is completely naive to the model. 
+
+- Accuracy = Correct Predictions / Total Predictions
+
+- Error = Incorrect Predictions / Total Predictions
+
+- Sensitivity refers to the true positive rate and summarizes how well the positive class was predicted.
+Sensitivity = TruePositive / (TruePositive + FalseNegative)
+
+- Specificity is the complement to sensitivity, or the true negative rate, and summarises how well the negative class was predicted.
+Specificity = TrueNegative / (FalsePositive + TrueNegative)
+
+
+### 3) Map accuracy. 
+
+While the machine learning accuracy tests how well the model performs, the link between how well the model (Machine learning statisics) perform and how accuracy the map it is not yest clear. The assumption is that better ML accuracy measures will improve map accuracy. 
+
+For each model we used a bootstrap approach to withhold a single site (pair of transect), generate a model and predict the occurrence of for the withheld site. We could then estimate the accuracy of the map aswell as 
+
+
+
+## Model Comparisons
+
+### 1: Internal ML statistics
+
+
+```{r set up folders, echo = FALSE}
+AOI <- "Deception"
+
+# set up file structure
+AOI_dir <- here::here(paste0(AOI,"_AOI"))
+
+#list.files(AOI_dir)
+
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models", "forest")
+
+cat <- "fore_mu_bgc"
+
+```
+
+
+```{r read model summaries, echo = FALSE, include = TRUE}
+model_data <- list.files(file.path(out_dir, cat), recursive = TRUE, pattern = "model_summary.RData", full.names = TRUE)
+ 
+ #model_data <- model_data[1:3]
+ #model_data
+ #model_file <- load(model_data[1])
+ 
+ model_sum <- foreach(j = model_data, .combine = rbind) %do% {
+     file = load(j)
+     trDat_sum
+ } 
+
+```
+
+Compare ML internal accuracy measures for different training points sets. Accuracy measures are based on cv training metrics plotted with total number of training point data. 
+
+```{r plot, include = TRUE, echo = FALSE}
+ggplot(data = model_sum, aes( y = accuracy, x = total_pts, colour = training_pt_type)) +
+  geom_point() +
+  facet_wrap(~bgc, scales = "free") + 
+  ylim(0,1)
+  
+```
+
+
+Compare sample variance of training points (measure of how variable or unbalanced training points sets are across modeled classes).
+
+```{r}
+ggplot(data = model_sum, aes( y = accuracy, x = samp_var, colour = training_pt_type)) +
+   geom_point() +
+   facet_wrap(~bgc) + 
+   ylim(0,1)
+```
+
+Compare sensitivity and specificity 
+
+```{r}
+ggplot(data = model_sum, aes( y = sens, x = spec, colour = training_pt_type)) +
+   geom_point() +
+   facet_wrap(~bgc) + 
+   ylim(0,1)
+
+```
+
+
+
+
+## References: 
+
+https://machinelearningmastery.com/tour-of-evaluation-metrics-for-imbalanced-classification/
+
+
+
+```{r aggregate temp output files, include = FALSE, echo = FALSE}
+# 
+# # aggregate output files; 
+# file_dir <- list.files(file.path(AOI_dir, "3_maps_analysis","models", "forest", "fore_mu_bgc","14"), full.names = TRUE, recursive = TRUE, pattern = "_pred_check.csv")
+# 
+# 
+# pred_test <- foreach(j = file_dir, .combine = rbind) %do% {
+#     file = read.csv(j)
+# } 
+# 
+# pred_test <- pred_test[,-1]
+# 
+# write.csv(pred_test, file.path(AOI_dir, "3_maps_analysis","models", "forest", "fore_mu_bgc","14", "pred_test.csv") )
+
+```
+
+

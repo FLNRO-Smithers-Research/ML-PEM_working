@@ -1,0 +1,1401 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 215.9 279.4"
+   version="1.1"
+   id="svg8"
+   inkscape:version="1.0.2-2 (e86c870879, 2021-01-15)"
+   sodipodi:docname="PEM_Process_Software_03_Mapping_and_Assessment.svg">
+  <defs
+     id="defs2">
+    <rect
+       x="225.425"
+       y="107.95"
+       width="82.55"
+       height="15.875"
+       id="rect4167" />
+    <rect
+       x="165.1"
+       y="107.95"
+       width="44.45"
+       height="19.05"
+       id="rect4135" />
+    <rect
+       x="165.1"
+       y="60.325"
+       width="41.275"
+       height="34.925"
+       id="rect2994" />
+    <rect
+       x="111.125"
+       y="60.325"
+       width="50.8"
+       height="12.7"
+       id="rect2796" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="15.875"
+       id="rect2788" />
+    <rect
+       x="6.35"
+       y="34.925"
+       width="157.76877"
+       height="31.58595"
+       id="rect2533" />
+    <rect
+       x="142.875"
+       y="263.525"
+       width="63.5"
+       height="15.875"
+       id="rect8672" />
+    <marker
+       style="overflow:visible;"
+       id="marker8426"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path8424" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker8366"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         id="path8364" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker7951"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path7949" />
+    </marker>
+    <rect
+       x="165.1"
+       y="107.95"
+       width="44.45"
+       height="31.75"
+       id="rect7579" />
+    <rect
+       x="114.3"
+       y="95.25"
+       width="50.8"
+       height="19.05"
+       id="rect7563" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.45"
+       height="57.15"
+       id="rect7492" />
+    <rect
+       x="123.7789"
+       y="-8.3699649"
+       width="128.12484"
+       height="6.4384345"
+       id="rect7486" />
+    <rect
+       x="6.35"
+       y="19.05"
+       width="38.1"
+       height="8.3133468"
+       id="rect7401" />
+    <rect
+       x="114.3"
+       y="57.15"
+       width="44.45"
+       height="19.05"
+       id="rect7379" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="31.750006"
+       id="rect7373" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="44.45"
+       height="19.05"
+       id="rect7367" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="50.8"
+       height="19.05"
+       id="rect7361" />
+    <rect
+       x="50.8"
+       y="31.75"
+       width="57.15"
+       height="69.85"
+       id="rect7345" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.35"
+       id="rect7333" />
+    <rect
+       x="12.7"
+       y="38.1"
+       width="27.949184"
+       height="14.505702"
+       id="rect7327" />
+    <marker
+       style="overflow:visible;"
+       id="Arrow2Mend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path7038" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow2Lend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Lend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(1.1) rotate(180) translate(1,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         id="path7032" />
+    </marker>
+    <rect
+       x="57.15"
+       y="38.1"
+       width="10.954232"
+       height="3.8153361"
+       id="rect6558" />
+    <rect
+       x="44.45"
+       y="31.75"
+       width="57.15"
+       height="19.05"
+       id="rect3133" />
+    <rect
+       x="9.3357306"
+       y="9.6576519"
+       width="77.049888"
+       height="10.025773"
+       id="rect21" />
+    <symbol
+       id="MagneticDrum">
+      <title
+         id="title2805">Magnetic Drum (Direct Access)</title>
+      <desc
+         id="desc2807">Magnetic drum. (ISO)</desc>
+      <path
+         d="m 6.6145833,30.427083 a 17.197917,17.197917 0 0 1 0,-21.1666663 H 33.072917 a 17.197917,17.197917 0 0 1 0,21.1666663 z"
+         style="stroke-width:0.529167"
+         id="path2809" />
+      <path
+         d="m 33.072917,30.427083 a 17.197917,17.197917 0 0 1 0,-21.1666663"
+         style="fill:none;stroke-width:0.529167;stroke-linecap:butt"
+         id="path2811" />
+    </symbol>
+    <symbol
+       id="Process">
+      <title
+         id="title2602">Process</title>
+      <desc
+         id="desc2604">Any processing function.</desc>
+      <rect
+         x="3.96875"
+         y="9.260417"
+         width="31.75"
+         height="21.166666"
+         style="stroke-width:0.529167"
+         id="rect2606" />
+    </symbol>
+    <symbol
+       id="AuxillaryOp">
+      <title
+         id="title2667">Auxiliary Operation</title>
+      <desc
+         id="desc2669">Offline operation.</desc>
+      <rect
+         x="9.260417"
+         y="9.260417"
+         width="21.166666"
+         height="21.166666"
+         style="stroke-width:0.529167"
+         id="rect2671" />
+    </symbol>
+    <symbol
+       id="CommunicationLink">
+      <title
+         id="title2751">Communication Link</title>
+      <desc
+         id="desc2753">Transcommunication link.</desc>
+      <path
+         d="M 17.197917,6.6145833 V 22.489583 l 5.291666,-5.291666 v 15.875"
+         style="fill:none;stroke-width:2"
+         id="path2755" />
+    </symbol>
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7401-5" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="51.099"
+       height="6.8257166"
+       id="rect7401-1" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414-2" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="34.279617"
+       height="7.1476383"
+       id="rect7401-2" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414-20" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect7492-0" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.450001"
+       height="57.150002"
+       id="rect7505" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="22.808288"
+       id="rect7647" />
+    <symbol
+       id="Document">
+      <title
+         id="title2616">Document</title>
+      <desc
+         id="desc2618">A document or report</desc>
+      <path
+         d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+         style="stroke-width:2"
+         id="path2620" />
+    </symbol>
+    <symbol
+       id="Extract">
+      <title
+         id="title2681">Extract</title>
+      <desc
+         id="desc2683">Removal of one or more specific sets of times from a set. (ISO)</desc>
+      <path
+         d="M 9.2604167,30.427083 19.84375,11.90625 30.427083,30.427083 Z"
+         style="stroke-width:2"
+         id="path2685" />
+    </symbol>
+    <rect
+       x="12.7"
+       y="63.5"
+       width="29.942618"
+       height="14.848018"
+       id="rect7861" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="29.977972"
+       id="rect7868" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.35"
+       id="rect8307" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="22.808288"
+       id="rect8530" />
+    <rect
+       x="114.3"
+       y="95.25"
+       width="50.8"
+       height="19.05"
+       id="rect8534" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect8540" />
+    <rect
+       x="9.3357306"
+       y="9.6576519"
+       width="77.049888"
+       height="10.025773"
+       id="rect8664" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect7333-1" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.3499999"
+       id="rect2608" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect2784" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="56.91872"
+       height="48.098904"
+       id="rect2966" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect3016" />
+    <rect
+       x="12.7"
+       y="38.1"
+       width="27.949184"
+       height="14.505702"
+       id="rect3031" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="19.512572"
+       id="rect3035" />
+    <rect
+       x="225.425"
+       y="107.95"
+       width="82.55"
+       height="15.875"
+       id="rect4487" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="29.942617"
+       height="14.848018"
+       id="rect7861-3" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="29.942617"
+       height="14.848018"
+       id="rect4354" />
+    <rect
+       x="50.799999"
+       y="57.150002"
+       width="57.150002"
+       height="29.977972"
+       id="rect7868-2" />
+    <rect
+       x="50.799999"
+       y="57.150002"
+       width="57.150002"
+       height="29.977972"
+       id="rect4357" />
+    <marker
+       style="overflow:visible"
+       id="marker4515"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(-0.6)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.625;stroke-linejoin:round;stroke-opacity:1"
+         id="path4513" />
+    </marker>
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.450001"
+       height="9.5250502"
+       id="rect5911" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.450001"
+       height="9.5250502"
+       id="rect6590" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect6638" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect6708" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect6710" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="15.875"
+       id="rect6712" />
+    <rect
+       x="111.125"
+       y="60.325"
+       width="46.823982"
+       height="13.210746"
+       id="rect6714" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect6778" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect6780" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="15.875"
+       id="rect6782" />
+    <rect
+       x="111.125"
+       y="60.325"
+       width="50.8"
+       height="12.7"
+       id="rect6784" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.45"
+       height="16.13283"
+       id="rect6798" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect6842" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect6844" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="15.875"
+       id="rect6846" />
+    <rect
+       x="111.125"
+       y="60.325"
+       width="50.8"
+       height="12.7"
+       id="rect6848" />
+    <marker
+       style="overflow:visible"
+       id="marker8426-4"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(-0.6)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.625;stroke-linejoin:round;stroke-opacity:1"
+         id="path8424-7" />
+    </marker>
+    <rect
+       x="9.3357306"
+       y="9.6576519"
+       width="77.049888"
+       height="10.025773"
+       id="rect6980" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect7048" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect7050" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="15.875"
+       id="rect7052" />
+    <rect
+       x="111.125"
+       y="60.325"
+       width="50.8"
+       height="12.7"
+       id="rect7054" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect7116" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect7118" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="15.875"
+       id="rect7120" />
+    <rect
+       x="111.125"
+       y="60.325"
+       width="50.8"
+       height="12.7"
+       id="rect7122" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.8089267"
+     inkscape:cx="524.02555"
+     inkscape:cy="679.67003"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     inkscape:document-rotation="0"
+     showgrid="true"
+     units="in"
+     guidetolerance="20"
+     gridtolerance="10"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     showguides="true"
+     inkscape:guide-bbox="true">
+    <inkscape:grid
+       type="xygrid"
+       id="grid3089"
+       units="in"
+       spacingx="3.175"
+       spacingy="3.175"
+       dotted="false"
+       snapvisiblegridlinesonly="false" />
+    <sodipodi:guide
+       position="165.1,247.65"
+       orientation="1,0"
+       id="guide7549" />
+    <sodipodi:guide
+       position="80.870405,257.175"
+       orientation="0,-1"
+       id="guide8610" />
+    <sodipodi:guide
+       position="6.35,180.975"
+       orientation="1,0"
+       id="guide2549" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g7884"
+       style="opacity:0.996;fill:#aaccee;stroke:#000000;stroke-width:0.456435;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(1.2,0,0,1,1.5875,51.26667)">
+      <title
+         id="title7878">Document</title>
+      <desc
+         id="desc7880">A document or report</desc>
+      <path
+         d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+         style="stroke-width:0.456435;stroke-miterlimit:4;stroke-dasharray:none"
+         id="path7882" />
+    </g>
+    <text
+       xml:space="preserve"
+       id="text19"
+       style="font-size:3.73071px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect21);"
+       transform="matrix(2.6476912,0,0,2.6476912,-19.172443,-20.365632)"
+       x="31.12818"
+       y="0"><tspan
+         x="19.596762"
+         y="12.959007"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold'">BC's Predictive Ecosystem 
+</tspan></tspan><tspan
+         x="29.96278"
+         y="17.622394"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold'">Mapping Process
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6556"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect6558);" />
+    <text
+       xml:space="preserve"
+       id="text7359"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7361);" />
+    <text
+       xml:space="preserve"
+       id="text7377"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;line-height:1.25;font-family:'Baskerville Old Face';-inkscape-font-specification:'Baskerville Old Face';white-space:pre;shape-inside:url(#rect7379);" />
+    <text
+       xml:space="preserve"
+       style="font-size:3.52777px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+       x="0"
+       y="53.117085"
+       id="text7385"><tspan
+         sodipodi:role="line"
+         id="tspan7383"
+         x="0"
+         y="53.117085"
+         style="stroke-width:0.264583" /></text>
+    <text
+       xml:space="preserve"
+       id="text7399"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401);"
+       transform="translate(-0.16353975,27.553367)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan
+           style="shape-inside:url(#rect7401)">Steps</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-7"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-5);"
+       transform="translate(44.093951,27.629329)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>Details</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-9"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-1);"
+       transform="translate(107.55332,27.593675)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>BEC DevExchange</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-5"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-2);"
+       transform="translate(158.33115,27.625095)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>pemgeneratr</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7484"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7486);" />
+    <text
+       xml:space="preserve"
+       id="text7490-9"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7492-0);"
+       transform="translate(50.731514,97.135659)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.803068"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.344988"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">data_smote()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="44.886907"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">data_downsample()</tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text8662"
+       style="font-size:2.39832px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect8664);"
+       transform="matrix(2.6476912,0,0,2.6476912,-19.172443,5.5249945)"
+       x="31.12818"
+       y="0"><tspan
+         x="24.271797"
+         y="11.780154"><tspan
+           style="font-weight:bold;font-size:2.39832px">Part C: Mapping and Map Accuracy</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text8670"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:end;white-space:pre;shape-inside:url(#rect8672);"
+       x="1.6932656"
+       y="0"
+       transform="translate(0.08176987,-3.4203097)"><tspan
+         x="189.54779"
+         y="266.02239"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">C. Chisholm
+</tspan></tspan><tspan
+         x="206.375"
+         y="269.55016"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">
+</tspan></tspan><tspan
+         x="190.32362"
+         y="273.07794"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">page 3 of 3</tspan></tspan></text>
+    <use
+       xlink:href="#Process"
+       style="fill:#ff9955;stroke:#000000;stroke-width:0.833333"
+       id="use2776"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.2,0,0,0.60000008,1.5875,130.96875)" />
+    <text
+       xml:space="preserve"
+       id="text2780"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect2784);"
+       transform="translate(-3.1801388,75.364038)"
+       x="12.967347"
+       y="0"><tspan
+         x="15.10464"
+         y="66.621259"><tspan
+           style="text-align:center;text-anchor:middle">Data balancing
+</tspan></tspan><tspan
+         x="21.396604"
+         y="71.030988"><tspan
+           style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:'sans-serif Italic'">(Optional)</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text2786"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect2788);"
+       x="-28.215351"
+       y="0"
+       transform="translate(0,76.016328)"><tspan
+         x="50.800781"
+         y="62.821222"><tspan
+           style="shape-inside:url(#rect2788)">- Training data -- model balancing:   
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.348997"><tspan
+           style="shape-inside:url(#rect2788)">  including options to downsample, 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="69.876772"><tspan
+           style="shape-inside:url(#rect2788)">  smote, or combinations thereof. </tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text2794"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect2796);"
+       x="-21.422277"
+       y="0"
+       transform="translate(3.1757812,76.016328)"><tspan
+         x="111.125"
+         y="62.821222"><tspan
+           style="text-align:start;text-anchor:start">04d_TrainingPt_balancing.Rmd</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text2992"
+       style="line-height:1.25;font-family:sans-serif;font-size:3.52777778px;text-align:center;white-space:pre;shape-inside:url(#rect2994);" />
+    <text
+       xml:space="preserve"
+       style="font-size:3.52777px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle;stroke-width:0.264583"
+       x="247.64999"
+       y="114.3"
+       id="text4173"><tspan
+         sodipodi:role="line"
+         id="tspan4171"
+         x="247.64999"
+         y="114.3"
+         style="stroke-width:0.264583" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="164.31812"
+       y="175.74541"
+       id="text8560-7"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"
+       inkscape:transform-center-x="-7.686368"
+       inkscape:transform-center-y="13.573799"><tspan
+         sodipodi:role="line"
+         id="tspan8558-8"
+         x="164.31812"
+         y="175.74541"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="163.58656"
+       y="179.39554"
+       id="text8560-2"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan8558-9"
+         x="163.58656"
+         y="179.39554"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7857"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7861-3);"
+       transform="translate(-2.269176,1.5804703)"
+       x="8.584322"
+       y="0"><tspan
+         x="20.580026"
+         y="66.621259"><tspan
+           style="shape-inside:url(#rect7861-3)">Produce
+</tspan></tspan><tspan
+         x="23.94847"
+         y="71.030988"><tspan
+           style="shape-inside:url(#rect7861-3)">Map</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7866"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;white-space:pre;shape-inside:url(#rect7868-2);"
+       transform="translate(0,3.0501215)"><tspan
+         x="50.800781"
+         y="59.647394"><tspan
+           style="shape-inside:url(#rect7868-2)">- Uses a Model Object and the 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="63.175169"><tspan
+           style="shape-inside:url(#rect7868-2)">  Covariate Rasters to produce a map</tspan></tspan></text>
+    <path
+       style="display:inline;fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.265, 0.53;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker4515)"
+       d="m 25.4,50.8 v 9.525"
+       id="path4505"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <text
+       xml:space="preserve"
+       id="text5909"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect5911);"
+       transform="translate(-4.9999988e-8,28.682779)"><tspan
+         x="114.30078"
+         y="34.247003"><tspan
+           style="shape-inside:url(#rect5911)">06a_PEM_Predict_Map.Rmd</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6636"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect6638);"
+       transform="translate(50.731514,28.016885)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">predict_landscape()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.803068"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.344988"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif">helper function:</tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="44.886907"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">tile_index()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="48.428827"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="51.970747"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6664"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect6708);"
+       transform="translate(50.731514,49.183576)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.803068"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.344988"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">model_aa</tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="44.886907"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">map_compare()</tspan></tspan></text>
+    <g
+       id="g6678"
+       transform="translate(0,-19.050001)">
+      <use
+         xlink:href="#Process"
+         style="fill:#aaccee;stroke:#000000;stroke-width:0.833333"
+         id="use6666"
+         x="0"
+         y="0"
+         width="100%"
+         height="100%"
+         transform="matrix(1.2,0,0,0.60000008,1.5875,102.39375)" />
+      <text
+         xml:space="preserve"
+         id="text6676"
+         style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect6710);"
+         transform="translate(-3.1801388,46.789045)"
+         x="12.967347"
+         y="0"><tspan
+           x="19.850262"
+           y="66.621259"><tspan
+             style="shape-inside:url(#rect6710)">Accuracy 
+</tspan></tspan><tspan
+           x="17.883111"
+           y="71.030988"><tspan
+             style="shape-inside:url(#rect6710)">Assessment</tspan></tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       id="text6692"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect6712);"
+       x="-28.215351"
+       y="0"
+       transform="translate(0,28.064254)"><tspan
+         x="50.800781"
+         y="62.821222"><tspan
+           style="shape-inside:url(#rect6712)">- Methods are still in development </tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="173.74377"
+       y="128.71571"
+       id="text6702"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"
+       inkscape:transform-center-x="-7.686368"
+       inkscape:transform-center-y="13.573799"><tspan
+         sodipodi:role="line"
+         id="tspan6700"
+         x="173.74377"
+         y="128.71571"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6734"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect6778);"
+       transform="translate(50.731514,122.53566)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.803068"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.344988"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">model_uncertainty()
+</tspan></tspan></text>
+    <use
+       xlink:href="#Process"
+       style="fill:#ff9955;stroke:#000000;stroke-width:0.833333"
+       id="use6736"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.2,0,0,0.60000008,1.5875,156.36875)" />
+    <text
+       xml:space="preserve"
+       id="text6746"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect6780);"
+       transform="translate(-3.1801388,100.76404)"
+       x="12.967347"
+       y="0"><tspan
+         x="18.158719"
+         y="66.621259"><tspan
+           style="shape-inside:url(#rect6780)">Uncertainty
+</tspan></tspan><tspan
+         x="20.894126"
+         y="71.030988"><tspan
+           style="shape-inside:url(#rect6780)">Mapping</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6762"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect6782);"
+       x="-28.215351"
+       y="0"
+       transform="translate(0,101.41633)"><tspan
+         x="50.800781"
+         y="62.821222"><tspan
+           style="shape-inside:url(#rect6782)">- Entropy 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.348997"><tspan
+           style="shape-inside:url(#rect6782)">- </tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6768"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect6784);"
+       x="-21.422277"
+       y="0"
+       transform="translate(3.1757812,101.41633)"><tspan
+         x="111.125"
+         y="62.821222"><tspan
+           style="text-align:start;text-anchor:start">04d_TrainingPt_balancing.Rmd</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="149.23553"
+       y="250.99808"
+       id="text6772"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"
+       inkscape:transform-center-x="-7.686368"
+       inkscape:transform-center-y="13.573799"><tspan
+         sodipodi:role="line"
+         id="tspan6770"
+         x="149.23553"
+         y="250.99808"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6796"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect6798);"
+       transform="translate(-4.9999988e-8,56.89217)"><tspan
+         x="114.30078"
+         y="34.247003"><tspan
+           style="shape-inside:url(#rect5911)">05b_PEM_external_AA_
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.774778"><tspan
+           style="shape-inside:url(#rect5911)">       Assessment.Rmd
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.302553"><tspan
+           style="shape-inside:url(#rect5911)">06e_Model_Assessment.Rmd
+</tspan></tspan><tspan
+         x="114.30078"
+         y="44.830328"><tspan
+           style="shape-inside:url(#rect5911)">07a_PEM_map_compare.Rmd</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6818"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect6842);"
+       transform="translate(50.731514,147.93566)"><tspan
+         x="114.30078"
+         y="34.247003"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.774778"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.302553"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;shape-inside:url(#rect7492-0)">Uses exiting functions</tspan></tspan></text>
+    <use
+       xlink:href="#Process"
+       style="fill:#ff9955;stroke:#000000;stroke-width:0.833333"
+       id="use6820"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.2,0,0,0.60000008,1.5875,181.76875)" />
+    <text
+       xml:space="preserve"
+       id="text6822"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect6844);"
+       transform="translate(-3.1801388,126.16404)"
+       x="12.967347"
+       y="0"><tspan
+         x="22.388437"
+         y="66.621259"><tspan
+           style="shape-inside:url(#rect6844)">Predict
+</tspan></tspan><tspan
+         x="19.996678"
+         y="71.030988"><tspan
+           style="shape-inside:url(#rect6844)">New Area</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6826"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect6846);"
+       x="-28.215351"
+       y="0"
+       transform="translate(0,126.81633)"><tspan
+         x="50.800781"
+         y="62.821222"><tspan
+           style="shape-inside:url(#rect6846)">- Extend model to a new area 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.348997"><tspan
+           style="shape-inside:url(#rect6846)">- </tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6832"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect6848);"
+       x="-21.422277"
+       y="0"
+       transform="translate(3.1757812,126.81633)"><tspan
+         x="111.125"
+         y="62.821222"><tspan
+           style="text-align:start;text-anchor:start">06a_PEM_predict_new_
+</tspan></tspan><tspan
+         x="111.125"
+         y="66.348997"><tspan
+           style="text-align:start;text-anchor:start">       area_map.RMD</tspan></tspan></text>
+    <path
+       style="display:inline;fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.296;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker8426-4)"
+       d="M 25.4,79.375 V 88.9"
+       id="path8422"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc" />
+    <text
+       xml:space="preserve"
+       id="text6978"
+       style="font-size:2.39832px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect6980);"
+       transform="matrix(2.6476912,0,0,2.6476912,-19.172443,98.658379)"
+       x="31.12818"
+       y="0"><tspan
+         x="26.548913"
+         y="11.780154"><tspan
+           style="font-weight:bold;font-size:2.39832px">Part D: Additional Functionality</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7034"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7048);"
+       transform="translate(50.558054,180.79444)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">map_depeckle()</tspan></tspan></text>
+    <use
+       xlink:href="#Process"
+       style="fill:#ff9955;stroke:#000000;stroke-width:0.833333"
+       id="use7036"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.2,0,0,0.60000008,1.5875,207.16875)" />
+    <text
+       xml:space="preserve"
+       id="text7038"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7050);"
+       transform="translate(-3.1801388,151.56404)"
+       x="12.967347"
+       y="0"><tspan
+         x="24.741439"
+         y="66.621259"><tspan
+           style="shape-inside:url(#rect7050)">Map
+</tspan></tspan><tspan
+         x="20.730484"
+         y="71.030988"><tspan
+           style="shape-inside:url(#rect7050)">Cleaning</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7040"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect7052);"
+       x="-28.215351"
+       y="0"
+       transform="translate(0,152.21633)"><tspan
+         x="50.800781"
+         y="62.821222"><tspan
+           style="shape-inside:url(#rect7052)">- Clean up the map raster
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.348997"><tspan
+           style="shape-inside:url(#rect7052)">- </tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7046"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7054);"
+       x="-21.422277"
+       y="0"
+       transform="translate(3.1757812,152.21633)"><tspan
+         x="111.125"
+         y="62.821222"><tspan
+           style="text-align:start;text-anchor:start">07d_Despeckle_and_
+</tspan></tspan><tspan
+         x="111.125"
+         y="66.348997"><tspan
+           style="text-align:start;text-anchor:start">        Polygonize.R</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="173.01564"
+       y="132.34859"
+       id="text7058"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"
+       inkscape:transform-center-x="-7.686368"
+       inkscape:transform-center-y="13.573799"><tspan
+         sodipodi:role="line"
+         id="tspan7056"
+         x="173.01564"
+         y="132.34859"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:none"
+       d="m 15.875,114.3 c 184.15,0 184.15,0 184.15,0"
+       id="path7060" />
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="144.86679"
+       y="272.79526"
+       id="text7098"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"
+       inkscape:transform-center-x="-7.686368"
+       inkscape:transform-center-y="13.573799"><tspan
+         sodipodi:role="line"
+         id="tspan7096"
+         x="144.86679"
+         y="272.79526"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7102"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7116);"
+       transform="translate(50.558054,203.01944)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">map_depeckle()</tspan></tspan></text>
+    <use
+       xlink:href="#Process"
+       style="fill:#ff9955;stroke:#000000;stroke-width:0.833333"
+       id="use7104"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.2,0,0,0.60000008,1.5875,229.39375)" />
+    <text
+       xml:space="preserve"
+       id="text7106"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7118);"
+       transform="translate(-3.1801388,173.78904)"
+       x="12.967347"
+       y="0"><tspan
+         x="19.032051"
+         y="66.621259"><tspan
+           style="shape-inside:url(#rect7118)">Polygonize</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7108"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect7120);"
+       x="-28.215351"
+       y="0"
+       transform="translate(0,174.44133)"><tspan
+         x="50.800781"
+         y="62.821222"><tspan
+           style="shape-inside:url(#rect7120)">- Converts the raster to polygons</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7114"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7122);"
+       x="-21.422277"
+       y="0"
+       transform="translate(3.1757812,174.44133)"><tspan
+         x="111.125"
+         y="62.821222"><tspan
+           style="text-align:start;text-anchor:start">07d_Despeckle_and_
+</tspan></tspan><tspan
+         x="111.125"
+         y="66.348997"><tspan
+           style="text-align:start;text-anchor:start">        Polygonize.R</tspan></tspan></text>
+  </g>
+</svg>

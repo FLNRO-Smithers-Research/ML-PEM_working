@@ -1,0 +1,98 @@
+---
+title: "02_training_point_slices"
+author: "G. Perkins"
+date: "04/01/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r read libraries,  echo = FALSE, warnings = FALSE, message=FALSE}
+
+library(dplyr)
+library(tidyverse)
+library(foreach)
+
+```
+
+
+## Training point data sets by slices. 
+
+Using stage 1 in Deception we tested the impact of adding successive data "slices" as defined by the 30 m standardies sampling.
+
+This was prompted by initial review of datasets which showed results of models using various training point subset were approximately the same quality irrespective of the method to subset. This indicated that potentially there was "too many" transects ie ~ 25 paired sites. As such the method to subset was not distingushing between. 
+
+
+
+We tested this on the ESSFmc, ESSFmcw and SBSmc2 variants. Note not all variants contained equal number of slices and sites per slice. 
+
+
+TO DO: Note we can also check the ratio and proportion per slice
+
+
+```{r set up folders, echo = FALSE}
+AOI <- "Deception"
+
+# set up file structure
+AOI_dir <- file.path("..", paste0(AOI,"_AOI"))
+
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models", "forest")
+
+cat <- "fore_mu_bgc"
+
+
+model_data_bgc <- list.files(file.path(out_dir, cat), recursive = TRUE, pattern = "model_summary.RData", full.names = TRUE)
+
+model_data_bgc <- model_data_bgc[13:24]
+
+
+model_sum <- foreach(j = model_data_bgc, .combine = rbind) %do% {
+    print(j)
+    #j = model_data_bgc[13]
+    file = load(j)
+    trDat_sum %>%
+      mutate(folder = paste(j))
+} 
+
+
+tr_pt_sum <-  model_sum %>% 
+  mutate(bgc = tolower(bgc)) %>%
+  group_by(bgc, folder) %>%
+  mutate(mu_no = n())%>%
+  dplyr::select(bgc, training_pt_type, total_pts, accuracy, spec, mu_no) %>%
+  distinct()
+    #<- rbind(model_sum, model_sum2)
+
+p1 <- ggplot(data =  tr_pt_sum , 
+             aes( y = accuracy, x = total_pts)) +
+  geom_point() + 
+  geom_text(aes(label = mu_no), position = position_dodge(1), vjust = -1.5) + 
+  ylim(0,1) + 
+  ggtitle("ML accuracy per training pt type") + 
+  facet_grid(~bgc, scales = "free")
+  
+p1
+
+p2 <- ggplot(data =  tr_pt_sum , 
+             aes( y = spec, x = total_pts)) +
+  geom_point() + 
+  geom_text(aes(label = mu_no), position = position_dodge(1), vjust = -1.5) + 
+  ylim(0,1) + 
+  ggtitle("ML accuracy per training pt type") + 
+  facet_grid(~bgc, scales = "free")
+  
+p2
+
+#p1 <- ggplot(data =  model_sum, 
+#             aes( y = accuracy, x = total_pts, colour = training_pt_type)) + 
+#  geom_point() + 
+#  geom_text 
+#  ylim(0,1) + 
+#  ggtitle("ML accuracy per training pt type") + 
+#  facet_grid(~bgc)
+
+
+```

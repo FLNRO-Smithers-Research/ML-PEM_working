@@ -1,0 +1,94 @@
+---
+title: "10_Linux_subsystem_setup"
+author: "G. Perkins and Colin Chisholm"
+date: "19/08/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setting up Docker Image to run R-studio on a Windows machine
+
+**Big thank-you to Colin Chisolm (UNBC/Aleza Lake Research forest) for helping me with the set up.** 
+
+This process will set up a linux instance on your Microsoft machine (not tested for apple). This provides the ability to dual boot and use linux directly within your machine. You do not need to define the storage size as this acts as a expandible set up. 
+
+Steps 
+
+1.	**Set up the linux instance and download a linux platform (ie. Ubuntu)**
+I used these [steps](https://docs.microsoft.com/en-us/windows/wsl/install-win10) for the detailed version with Ubuntu 18.04 (installed on April 2020) 
+
+
+2. **Run the linux instance and assign a password and user name**
+Assign UNIX username and password (step 6 of details above). For this example I used:
+UNIX username: rocker
+UNIX password: rocker
+
+
+3.	**Install [Docker desktop](https://www.docker.com/products/docker-desktop) and select the docker image to use**. For geospatial analysis the [rocker/georocker](http://chisholm.forestecosystems.ca/notes/first-use-of-docker/) is recommended. 
+
+
+4.	**Set up the file paths to link your local machine and virtual machine**. 
+This will mirror the links from your Microsoft machine to the linux side and will ensure that outputs are directed to correct location. Ie you don’t need to transfer files back and forth as they both point to the same file location. When setting this up remember that filepaths for the Microsoft side you need to use the prefix mnt. 
+
+Open Ubunto and create an image: ** if using BCGOV network need to use the powershell as ADMIN (windows-x key).
+ 
+ 
+The example below shows the commands to use based on linking the folder  (d:/PEM_DATA/BEC_DevExchange_Work folder). Note you will need to adjust this to your needs.
+
+```{r, eval = FALSE}
+# if using the windows power shell 
+
+docker run --name rockergeo -d -v d:\PEM_DATA\BEC_DevExchange_Work:/home/rstudio/BEC_DevExchange_Work -e ROOT=TRUE -e PASSWORD=rocker -p 8787:8787 rocker/geospatial
+
+
+# if using Ubuntu command line - use the linex filepaths 
+
+docker run --name RockerG -d -v /mnt/c/workspace/:/home/rstudio/dworkspace/ -v /mnt/d/PEM_DATA/BEC_DevExchange_Work:/home/rstudio/BEC_DevExchange_Work/ -e ROOT=TRUE -e PASSWORD=rocker -p 8787:8787 rocker/geospatial
+
+```
+
+Note you can also map to multiple locations in this command if you want to link multiple folder locations.
+
+If using the shell you will see this message 
+![Image](./_images/docker_example_image.png)
+Now you are all set up and ready to go! 
+
+
+
+5.**To use R-studio** 
+To open an instance of R-studio open the docker desktop and select the instance you created. Aternatively type in a browser directly [http://localhost:8787].
+You will be prompted for a user and password. Make sure to use the password you used for your unix passwork (i.e. step 1)
+
+User =  rstudio, 
+password = rocker (*or whatever you selected as your unix password from step1)
+
+
+Once in the R studio session ensure you open the r.proj file to make sure the filepath match. You should see the files structure mirrored in the files for the folder you pointed to above. If you don’t see any files (where there should be files – go back and check the line of code which specifies the linked locations). This can be very picky!  
+
+
+ 
+### **Other tips**: 
+•	To assess the command line in docker you can use the following commands in the Windows Powershell window
+
+```{r, eval = FALSE}
+
+Docker ps (to see what is running)
+Docker stop rockergeo     (or name of instance)
+Docker run  (to run a docker instance)
+```
+
+
+Note this is preloaded with a number of packages. If you update more they will be retained in the instance, but if you need to delete the instance and start again you will need to reload all the pakages not already on the georocker instance. Note there is a way to create your own personal instance… yet to be worked out 
+
+If you need to update packages in the R-studio terminal tab type: 
+
+```{r, eval = FALSE}
+
+sudo apt-get install update
+
+```
+
+

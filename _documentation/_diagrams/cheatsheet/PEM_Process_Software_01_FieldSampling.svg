@@ -1,0 +1,1280 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 215.9 279.4"
+   version="1.1"
+   id="svg8"
+   inkscape:version="1.0.2-2 (e86c870879, 2021-01-15)"
+   sodipodi:docname="PEM_Process_Software_01_FieldSampling.svg">
+  <defs
+     id="defs2">
+    <marker
+       style="overflow:visible;"
+       id="marker3496"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path3494" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow1Mend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow1Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4) rotate(180) translate(10,0)"
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
+         id="path3087" />
+    </marker>
+    <rect
+       x="142.875"
+       y="263.525"
+       width="63.5"
+       height="15.875"
+       id="rect8672" />
+    <marker
+       style="overflow:visible;"
+       id="marker8426"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path8424" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker8366"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         id="path8364" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker7951"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path7949" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker7917"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path7915" />
+    </marker>
+    <rect
+       x="165.1"
+       y="107.95"
+       width="44.45"
+       height="31.75"
+       id="rect7579" />
+    <rect
+       x="114.3"
+       y="95.25"
+       width="50.8"
+       height="19.05"
+       id="rect7563" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.45"
+       height="57.15"
+       id="rect7492" />
+    <rect
+       x="123.7789"
+       y="-8.3699649"
+       width="128.12484"
+       height="6.4384345"
+       id="rect7486" />
+    <rect
+       x="6.35"
+       y="19.05"
+       width="38.1"
+       height="8.3133468"
+       id="rect7401" />
+    <rect
+       x="114.3"
+       y="57.15"
+       width="44.45"
+       height="19.05"
+       id="rect7379" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="31.750006"
+       id="rect7373" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="44.45"
+       height="19.05"
+       id="rect7367" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="50.8"
+       height="19.05"
+       id="rect7361" />
+    <rect
+       x="50.8"
+       y="31.75"
+       width="57.15"
+       height="69.85"
+       id="rect7345" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.35"
+       id="rect7333" />
+    <rect
+       x="12.7"
+       y="38.1"
+       width="23.234982"
+       height="6.35"
+       id="rect7327" />
+    <marker
+       style="overflow:visible;"
+       id="Arrow2Mend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path7038" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow2Lend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Lend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(1.1) rotate(180) translate(1,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         id="path7032" />
+    </marker>
+    <rect
+       x="57.15"
+       y="38.1"
+       width="10.954232"
+       height="3.8153361"
+       id="rect6558" />
+    <rect
+       x="44.45"
+       y="31.75"
+       width="57.15"
+       height="19.05"
+       id="rect3133" />
+    <rect
+       x="9.3357306"
+       y="9.6576519"
+       width="77.049888"
+       height="10.025773"
+       id="rect21" />
+    <symbol
+       id="MagneticDrum">
+      <title
+         id="title2805">Magnetic Drum (Direct Access)</title>
+      <desc
+         id="desc2807">Magnetic drum. (ISO)</desc>
+      <path
+         d="m 6.6145833,30.427083 a 17.197917,17.197917 0 0 1 0,-21.1666663 H 33.072917 a 17.197917,17.197917 0 0 1 0,21.1666663 z"
+         style="stroke-width:0.529167"
+         id="path2809" />
+      <path
+         d="m 33.072917,30.427083 a 17.197917,17.197917 0 0 1 0,-21.1666663"
+         style="fill:none;stroke-width:0.529167;stroke-linecap:butt"
+         id="path2811" />
+    </symbol>
+    <symbol
+       id="Process">
+      <title
+         id="title2602">Process</title>
+      <desc
+         id="desc2604">Any processing function.</desc>
+      <rect
+         x="3.96875"
+         y="9.260417"
+         width="31.75"
+         height="21.166666"
+         style="stroke-width:0.529167"
+         id="rect2606" />
+    </symbol>
+    <symbol
+       id="AuxillaryOp">
+      <title
+         id="title2667">Auxiliary Operation</title>
+      <desc
+         id="desc2669">Offline operation.</desc>
+      <rect
+         x="9.260417"
+         y="9.260417"
+         width="21.166666"
+         height="21.166666"
+         style="stroke-width:0.529167"
+         id="rect2671" />
+    </symbol>
+    <symbol
+       id="CommunicationLink">
+      <title
+         id="title2751">Communication Link</title>
+      <desc
+         id="desc2753">Transcommunication link.</desc>
+      <path
+         d="M 17.197917,6.6145833 V 22.489583 l 5.291666,-5.291666 v 15.875"
+         style="fill:none;stroke-width:2"
+         id="path2755" />
+    </symbol>
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7401-5" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="51.099"
+       height="6.8257166"
+       id="rect7401-1" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414-2" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="34.279617"
+       height="7.1476383"
+       id="rect7401-2" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414-20" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect7492-0" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.450001"
+       height="57.150002"
+       id="rect7505" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="22.808288"
+       id="rect7647" />
+    <symbol
+       id="Document">
+      <title
+         id="title2616">Document</title>
+      <desc
+         id="desc2618">A document or report</desc>
+      <path
+         d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+         style="stroke-width:2"
+         id="path2620" />
+    </symbol>
+    <symbol
+       id="Extract">
+      <title
+         id="title2681">Extract</title>
+      <desc
+         id="desc2683">Removal of one or more specific sets of times from a set. (ISO)</desc>
+      <path
+         d="M 9.2604167,30.427083 19.84375,11.90625 30.427083,30.427083 Z"
+         style="stroke-width:2"
+         id="path2685" />
+    </symbol>
+    <rect
+       x="12.7"
+       y="63.5"
+       width="29.942618"
+       height="14.848018"
+       id="rect7861" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="29.977972"
+       id="rect7868" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.35"
+       id="rect8307" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="22.808288"
+       id="rect8530" />
+    <rect
+       x="114.3"
+       y="95.25"
+       width="50.8"
+       height="19.05"
+       id="rect8534" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect8540" />
+    <rect
+       x="9.3357306"
+       y="9.6576519"
+       width="77.049888"
+       height="10.025773"
+       id="rect8664" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.35"
+       id="rect2925" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="22.808288"
+       id="rect2927" />
+    <rect
+       x="114.3"
+       y="95.25"
+       width="50.8"
+       height="19.05"
+       id="rect2929" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect2931" />
+    <rect
+       x="12.7"
+       y="38.1"
+       width="22.191664"
+       height="10.36057"
+       id="rect3047" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="22.808288"
+       id="rect4193" />
+    <marker
+       style="overflow:visible"
+       id="marker4515"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(-0.6)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.625;stroke-linejoin:round;stroke-opacity:1"
+         id="path4513" />
+    </marker>
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1.5690362"
+     inkscape:cx="447.09343"
+     inkscape:cy="857.5678"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     inkscape:document-rotation="0"
+     showgrid="true"
+     units="in"
+     guidetolerance="20"
+     gridtolerance="10"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     showguides="true"
+     inkscape:guide-bbox="true">
+    <inkscape:grid
+       type="xygrid"
+       id="grid3089"
+       units="in"
+       spacingx="3.175"
+       spacingy="3.175"
+       dotted="false"
+       snapvisiblegridlinesonly="false" />
+    <sodipodi:guide
+       position="165.1,247.65"
+       orientation="1,0"
+       id="guide7549" />
+    <sodipodi:guide
+       position="80.870405,257.175"
+       orientation="0,-1"
+       id="guide8610" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="178.94078"
+       y="112.30592"
+       id="text8522"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan8520"
+         x="178.94078"
+         y="112.30592"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text19"
+       style="font-size:3.73071px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect21);"
+       transform="matrix(2.6476912,0,0,2.6476912,-19.172443,-20.365632)"
+       x="31.12818"
+       y="0"><tspan
+         x="19.596762"
+         y="12.959007"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold'">BC's Predictive Ecosystem 
+</tspan></tspan><tspan
+         x="29.96278"
+         y="17.622394"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold'">Mapping Process
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6556"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect6558);" />
+    <use
+       xlink:href="#MagneticDrum"
+       style="fill:#aaccee;stroke:#000000;stroke-width:0.99858393;stroke-miterlimit:4;stroke-dasharray:none"
+       id="use6632"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.1142646,0,0,0.90000003,3.3313489,51.990544)" />
+    <text
+       xml:space="preserve"
+       id="text7325"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7327);"
+       transform="translate(0,29.944212)"><tspan
+         x="12.699219"
+         y="41.220868"><tspan>Initial Data</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7343"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7345);"
+       transform="translate(0,28.574914)"><tspan
+         x="50.800781"
+         y="34.247003"><tspan
+           style="shape-inside:url(#rect7345)">- Digital Terrain Model (25m</tspan><tspan
+           style="font-size:65%;baseline-shift:super">2</tspan><tspan
+           style="shape-inside:url(#rect7345)">)
+</tspan></tspan><tspan
+         x="50.800781"
+         y="37.774778"><tspan
+           style="shape-inside:url(#rect7345)">
+</tspan></tspan><tspan
+         x="50.800781"
+         y="41.302553"><tspan
+           style="shape-inside:url(#rect7345)">- Defined area of interest 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="44.830328"><tspan
+           style="shape-inside:url(#rect7345)">  (snapped to 100m grid)
+</tspan></tspan><tspan
+         x="50.800781"
+         y="48.358103"><tspan
+           style="shape-inside:url(#rect7345)">- BEC Subzones
+</tspan></tspan><tspan
+         x="50.800781"
+         y="51.885877"><tspan
+           style="shape-inside:url(#rect7345)">- BCData sources: 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="55.413652"><tspan
+           style="shape-inside:url(#rect7345)">   - Freshwater atlas (lakes, wetlands,
+</tspan></tspan><tspan
+         x="50.800781"
+         y="58.941427"><tspan
+           style="shape-inside:url(#rect7345)">     and rivers)
+</tspan></tspan><tspan
+         x="50.800781"
+         y="62.469202"><tspan
+           style="shape-inside:url(#rect7345)">   - roads
+</tspan></tspan><tspan
+         x="50.800781"
+         y="65.996977"><tspan
+           style="shape-inside:url(#rect7345)">   - VRI: age class and conifer leading
+</tspan></tspan><tspan
+         x="50.800781"
+         y="69.524751"><tspan
+           style="shape-inside:url(#rect7345)">   - Harvested Areas of BC
+</tspan></tspan><tspan
+         x="50.800781"
+         y="73.05253"><tspan
+           style="shape-inside:url(#rect7345)">   - Forest Tenure Harvesting 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="76.580309"><tspan
+           style="shape-inside:url(#rect7345)">     Authority Polygons
+</tspan></tspan><tspan
+         x="50.800781"
+         y="80.108087"><tspan
+           style="shape-inside:url(#rect7345)">   - BC Major Cities Points
+</tspan></tspan><tspan
+         x="50.800781"
+         y="83.635866"><tspan
+           style="shape-inside:url(#rect7345)">   - Fire Perimeters - Current
+</tspan></tspan><tspan
+         x="50.800781"
+         y="87.163645"><tspan
+           style="shape-inside:url(#rect7345)">   - Fire Perimeters - Historical
+</tspan></tspan><tspan
+         x="50.800781"
+         y="90.691423"><tspan
+           style="shape-inside:url(#rect7345)">   - TANTALIS - Surface Ownership 
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7359"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7361);" />
+    <text
+       xml:space="preserve"
+       id="text7377"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;line-height:1.25;font-family:'Baskerville Old Face';-inkscape-font-specification:'Baskerville Old Face';white-space:pre;shape-inside:url(#rect7379);" />
+    <text
+       xml:space="preserve"
+       style="font-size:3.52777px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+       x="0"
+       y="53.117085"
+       id="text7385"><tspan
+         sodipodi:role="line"
+         id="tspan7383"
+         x="0"
+         y="53.117085"
+         style="stroke-width:0.264583" /></text>
+    <text
+       xml:space="preserve"
+       id="text7399"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401);"
+       transform="translate(-0.16353975,27.553367)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan
+           style="shape-inside:url(#rect7401)">Steps</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-7"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-5);"
+       transform="translate(44.093951,27.629329)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>Details</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-9"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-1);"
+       transform="translate(107.55332,27.593675)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>BEC DevExchange</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-5"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-2);"
+       transform="translate(158.33115,27.625095)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>pemgeneratr</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7484"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7486);" />
+    <text
+       xml:space="preserve"
+       id="text7490"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7492);"
+       transform="translate(0,28.574914)"><tspan
+         x="114.30078"
+         y="34.247003"><tspan
+           style="shape-inside:url(#rect7492)">00_folder_set_up.Rmd
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.774778"><tspan
+           style="shape-inside:url(#rect7492)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.302553"><tspan
+           style="shape-inside:url(#rect7492)">01_BaseLayerConsolidate.Rmd</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7490-9"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7492-0);"
+       transform="translate(50.731514,28.574914)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.803068"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.344988"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">aoi_snap()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="44.886907"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">plan_get_baselayers()</tspan></tspan></text>
+    <g
+       id="g7884"
+       style="opacity:0.996;fill:#aaccee;stroke:#000000;stroke-width:0.45643546;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(1.2,0,0,1,1.5875,178.06458)">
+      <title
+         id="title7878">Document</title>
+      <desc
+         id="desc7880">A document or report</desc>
+      <path
+         d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+         style="stroke-width:0.45643546;stroke-miterlimit:4;stroke-dasharray:none"
+         id="path7882" />
+    </g>
+    <g
+       id="g7851"
+       transform="translate(0,15.874911)">
+      <use
+         xlink:href="#Process"
+         style="fill:#aaccee;stroke:#000000;stroke-width:0.833333"
+         id="use6657"
+         x="0"
+         y="0"
+         width="100%"
+         height="100%"
+         transform="matrix(1.2,0,0,1.2000001,1.5875,96.837499)" />
+      <text
+         xml:space="preserve"
+         id="text7331"
+         style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7333);"
+         transform="translate(1.8073824,55.001983)"><tspan
+           x="12.699219"
+           y="66.621259"><tspan>Sample Plan</tspan></tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       id="text7371"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7373);"
+       transform="translate(0,66.674914)"><tspan
+         x="50.800781"
+         y="59.647394"><tspan
+           style="shape-inside:url(#rect7373)">1. Generate sample plan covariates
+</tspan></tspan><tspan
+         x="50.800781"
+         y="63.175169"><tspan
+           style="shape-inside:url(#rect7373)">
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.702944"><tspan
+           style="shape-inside:url(#rect7373)">2. Generate sample cost surface
+</tspan></tspan><tspan
+         x="50.800781"
+         y="70.230722"><tspan
+           style="shape-inside:url(#rect7373)">    (raster) 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="73.758501"><tspan
+           style="shape-inside:url(#rect7373)">3. Sliced Conditioned Latin Hyper-Cube
+</tspan></tspan><tspan
+         x="50.800781"
+         y="77.286279"><tspan
+           style="shape-inside:url(#rect7373)">    sample points and associated survey
+</tspan></tspan><tspan
+         x="50.800781"
+         y="80.814058"><tspan
+           style="shape-inside:url(#rect7373)">    transects.  
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7561"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7563);"
+       transform="translate(0,28.574914)"><tspan
+         x="114.30078"
+         y="97.747003"><tspan
+           style="shape-inside:url(#rect7563)">01_raster_BaseLayers.Rmd
+</tspan></tspan><tspan
+         x="114.30078"
+         y="101.27478"><tspan
+           style="shape-inside:url(#rect7563)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="104.80256"><tspan
+           style="shape-inside:url(#rect7563)">03a_Stage1_SampleDesign.Rmd</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7577"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;line-height:1.25;font-family:'Courier New';-inkscape-font-specification:'Courier New';white-space:pre;shape-inside:url(#rect7579);"
+       transform="translate(0,15.874911)"><tspan
+         x="165.09961"
+         y="110.46037"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:'Courier New';-inkscape-font-specification:'Courier New'">plan_covariates()
+</tspan></tspan><tspan
+         x="165.09961"
+         y="113.98815"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:'Courier New';-inkscape-font-specification:'Courier New'">
+</tspan></tspan><tspan
+         x="165.09961"
+         y="117.51592"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:'Courier New';-inkscape-font-specification:'Courier New'">plan_exclusion()
+</tspan></tspan><tspan
+         x="165.09961"
+         y="121.0437"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:'Courier New';-inkscape-font-specification:'Courier New'">plan_costsurface()
+</tspan></tspan><tspan
+         x="165.09961"
+         y="124.57148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:'Courier New';-inkscape-font-specification:'Courier New'">plan_locatesampling()
+</tspan></tspan><tspan
+         x="165.09961"
+         y="128.09926"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:'Courier New';-inkscape-font-specification:'Courier New'">plan_transects()</tspan></tspan></text>
+    <g
+       id="use7703"
+       style="opacity:0.996;fill:#aaccee;stroke:#000000;stroke-width:0.456435;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(1.2,0,0,1,1.5875,146.31458)">
+      <title
+         id="title7783">Document</title>
+      <desc
+         id="desc7785">A document or report</desc>
+      <path
+         d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+         style="stroke-width:0.456435;stroke-miterlimit:4;stroke-dasharray:none"
+         id="path7787" />
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:3.52777px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle;opacity:0.996;stroke-width:0.264583"
+       x="25.844416"
+       y="163.2289"
+       id="text7627"><tspan
+         sodipodi:role="line"
+         id="tspan7625"
+         x="25.844416"
+         y="163.2289"
+         style="text-align:center;text-anchor:middle;stroke-width:0.264583">Sampling Map </tspan><tspan
+         sodipodi:role="line"
+         x="25.844416"
+         y="167.63861"
+         style="text-align:center;text-anchor:middle;stroke-width:0.264583"
+         id="tspan7629">Production</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7645"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7647);"
+       transform="translate(0,98.424934)"><tspan
+         x="50.800781"
+         y="59.647394"><tspan
+           style="shape-inside:url(#rect7647)">- Using QGIS -- ATLAS module
+</tspan></tspan><tspan
+         x="50.800781"
+         y="63.175169"><tspan
+           style="shape-inside:url(#rect7647)">  - 1:100,000 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.702944"><tspan
+           style="shape-inside:url(#rect7647)">  -     1:2,500
+</tspan></tspan><tspan
+         x="50.800781"
+         y="70.230722"><tspan
+           style="shape-inside:url(#rect7647)">- Export to ipad Avenza's 'PDF Map' 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="73.758501"><tspan
+           style="shape-inside:url(#rect7647)">  as a '</tspan><tspan
+           style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Italic'">map collection</tspan><tspan
+           style="shape-inside:url(#rect7647)">'
+</tspan></tspan><tspan
+         x="50.800781"
+         y="77.286279"><tspan
+           style="shape-inside:url(#rect7647)">- Sampling </tspan><tspan
+           style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Italic'">Schema</tspan><tspan
+           style="shape-inside:url(#rect7647)"> set for project </tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:5.95793px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;opacity:0.3;fill:#000000;stroke-width:0.627305"
+       x="87.348122"
+       y="190.0679"
+       id="text7809"
+       transform="rotate(-14.171511)"><tspan
+         sodipodi:role="line"
+         id="tspan7807"
+         x="87.348122"
+         y="190.0679"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.627305">Manual </tspan><tspan
+         sodipodi:role="line"
+         x="87.348122"
+         y="197.51532"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.627305"
+         id="tspan7811">Processing</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:5.95793px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;opacity:0.3;fill:#000000;stroke-width:0.627305"
+       x="135.94417"
+       y="202.33884"
+       id="text7817"
+       transform="rotate(-14.171511)"><tspan
+         sodipodi:role="line"
+         id="tspan7813"
+         x="135.94417"
+         y="202.33884"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.627305">Manual </tspan><tspan
+         sodipodi:role="line"
+         x="135.94417"
+         y="209.78625"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.627305"
+         id="tspan7815">Processing</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7857"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7861);"
+       transform="translate(-2.2691757,128.0513)"
+       x="8.584322"
+       y="0"><tspan
+         x="18.827333"
+         y="66.621259"><tspan
+           style="text-align:center;text-anchor:middle">Field Data
+</tspan></tspan><tspan
+         x="18.946188"
+         y="71.030988"><tspan
+           style="text-align:center;text-anchor:middle">Collection</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7866"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;white-space:pre;shape-inside:url(#rect7868);"
+       transform="translate(0,130.17511)"><tspan
+         x="50.800781"
+         y="59.647394"><tspan
+           style="shape-inside:url(#rect7868)">- Use high precision (sub-metre) GPS
+</tspan></tspan><tspan
+         x="50.800781"
+         y="63.175169"><tspan
+           style="shape-inside:url(#rect7868)">- Complete all fields as per the </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif">schema</tspan><tspan
+           style="shape-inside:url(#rect7868)"> 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.702944"><tspan
+           style="shape-inside:url(#rect7868)">- Record track-log 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="70.230722"><tspan
+           style="shape-inside:url(#rect7868)">- Record locations where 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="73.758501"><tspan
+           style="shape-inside:url(#rect7868)">  Site Series changes. 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="77.286279"><tspan
+           style="shape-inside:url(#rect7868)">- Record site series you are entering.
+</tspan></tspan><tspan
+         x="50.800781"
+         y="80.814058"><tspan
+           style="shape-inside:url(#rect7868)">  </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif">Looking ahead, not behind
+</tspan></tspan><tspan
+         x="50.800781"
+         y="84.341837"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif">- Export as GPX and Shapefile</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:5.95793px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;opacity:0.3;fill:#000000;stroke-width:0.627305"
+       x="79.574837"
+       y="220.85159"
+       id="text7903"
+       transform="rotate(-14.171511)"><tspan
+         sodipodi:role="line"
+         id="tspan7899"
+         x="79.574837"
+         y="220.85159"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.627305">Manual </tspan><tspan
+         sodipodi:role="line"
+         x="79.574837"
+         y="228.29901"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.627305"
+         id="tspan7901">Processing</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:5.95793px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;opacity:0.3;fill:#000000;stroke-width:0.627305"
+       x="128.17133"
+       y="233.12263"
+       id="text7909"
+       transform="rotate(-14.171511)"><tspan
+         sodipodi:role="line"
+         id="tspan7905"
+         x="128.17133"
+         y="233.12263"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.627305">Manual </tspan><tspan
+         sodipodi:role="line"
+         x="128.17133"
+         y="240.57005"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold Italic';text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.627305"
+         id="tspan7907">Processing</tspan></text>
+    <path
+       style="fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker7951)"
+       d="m 25.4,149.225 v 6.35"
+       id="path7911"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <path
+       style="display:inline;fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker7917)"
+       d="m 25.4,174.625 v 12.7"
+       id="path7913"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.233708;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Mend)"
+       d="M 25.4,79.374927 V 123.82497"
+       id="path7009"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <use
+       xlink:href="#Process"
+       style="fill:#aaccee;stroke:#000000;stroke-width:1.05409256;stroke-miterlimit:4;stroke-dasharray:none"
+       id="use8299"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.2,0,0,0.74999999,1.5875,215.30469)" />
+    <text
+       xml:space="preserve"
+       id="text8303"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect8307);"
+       transform="translate(-0.1303274,164.48522)"
+       x="10.411085"
+       y="0"><tspan
+         x="14.77301"
+         y="66.621259"><tspan
+           style="text-align:center;text-anchor:middle">Data Import</tspan></tspan></text>
+    <path
+       style="display:inline;fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.296;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker8426)"
+       d="M 25.4,206.375 V 222.25"
+       id="path8422"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <text
+       xml:space="preserve"
+       id="text8528"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect8530);"
+       transform="translate(0,164.75334)"><tspan
+         x="50.800781"
+         y="59.647394"><tspan
+           style="shape-inside:url(#rect8530)">- imports GPX and or Shapefile data 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="63.175169"><tspan
+           style="shape-inside:url(#rect8530)">- Converts point data to lines
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.702944"><tspan
+           style="shape-inside:url(#rect8530)">- converts lines to regularly sampled
+</tspan></tspan><tspan
+         x="50.800781"
+         y="70.230722"><tspan
+           style="shape-inside:url(#rect8530)">  points </tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text8532"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect8534);"
+       transform="translate(0,126.58652)"><tspan
+         x="114.30078"
+         y="97.747003"><tspan
+           style="shape-inside:url(#rect8534)">04a_TrainingPt_
+</tspan></tspan><tspan
+         x="114.30078"
+         y="101.27478"><tspan
+           style="shape-inside:url(#rect8534)">       TransectImport&amp;Clean.Rmd
+</tspan></tspan><tspan
+         x="114.30078"
+         y="104.80256"><tspan
+           style="shape-inside:url(#rect8534)">04a_AA_TrainingPt_
+</tspan></tspan><tspan
+         x="114.30078"
+         y="108.33034"><tspan
+           style="shape-inside:url(#rect8534)">       TransectImport&amp;Clean.Rmd
+</tspan></tspan><tspan
+         x="114.30078"
+         y="111.85812"><tspan
+           style="shape-inside:url(#rect8534)">04b_TrainingPt_Summary.Rmd</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text8538"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect8540);"
+       transform="translate(50.731514,182.5629)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.803068"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.344988"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">r_avenza()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="44.886907"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">make_lines()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="48.428827"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">transect_sample()</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="168.65367"
+       y="164.46587"
+       id="text8544"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan8542"
+         x="168.65367"
+         y="164.46587"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="167.59286"
+       y="169.75887"
+       id="text8548"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan8546"
+         x="167.59286"
+         y="169.75887"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="166.75706"
+       y="173.92911"
+       id="text8552"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan8550"
+         x="166.75706"
+         y="173.92911"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="166.03378"
+       y="177.53798"
+       id="text8556"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan8554"
+         x="166.03378"
+         y="177.53798"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="165.32657"
+       y="181.06665"
+       id="text8560"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan8558"
+         x="165.32657"
+         y="181.06665"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text8662"
+       style="font-size:2.39832px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect8664);"
+       transform="matrix(2.6476912,0,0,2.6476912,-19.172443,5.5249945)"
+       x="31.12818"
+       y="0"><tspan
+         x="32.72974"
+         y="11.780154"><tspan
+           style="font-weight:bold;font-size:2.39832px">Part A: Field Sampling</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text8670"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:end;white-space:pre;shape-inside:url(#rect8672);"
+       x="1.6932656"
+       y="0"
+       transform="translate(0.08176987,-3.4203097)"><tspan
+         x="189.54779"
+         y="266.02239"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">C. Chisholm
+</tspan></tspan><tspan
+         x="206.375"
+         y="269.55016"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">
+</tspan></tspan><tspan
+         x="190.32362"
+         y="273.07794"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">page 1 of 3</tspan></tspan></text>
+    <use
+       xlink:href="#MagneticDrum"
+       style="fill:#00ff00;stroke:#000000;stroke-width:0.998584"
+       id="use3039"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.1142646,0,0,0.90000003,12.889685,236.14062)" />
+    <text
+       xml:space="preserve"
+       id="text3045"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect3047);"
+       transform="translate(9.5583363,211.88943)"><tspan
+         x="12.699219"
+         y="41.220868"><tspan
+           style="font-weight:bold">Field Data
+</tspan></tspan><tspan
+         x="12.699219"
+         y="45.630593"><tspan
+           style="font-weight:bold">Points</tspan></tspan></text>
+    <path
+       style="fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 9.5249999,238.125 V 254"
+       id="path3074"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker3496)"
+       d="M 9.5249999,254 H 15.875"
+       id="path3076"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <text
+       xml:space="preserve"
+       id="text4191"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect4193);"
+       transform="translate(6.5170019,187.26662)"><tspan
+         x="50.800781"
+         y="59.647394"><tspan
+           style="shape-inside:url(#rect4193)">- Spatial database of regular sample 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="63.175169"><tspan
+           style="shape-inside:url(#rect4193)">   points 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.702944"><tspan
+           style="shape-inside:url(#rect4193)">- contains all empirical data for 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="70.230722"><tspan
+           style="shape-inside:url(#rect4193)">  modelling
+</tspan></tspan><tspan
+         x="50.800781"
+         y="73.758501"><tspan
+           style="shape-inside:url(#rect4193)">- In the following steps this will be used 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="77.286279"><tspan
+           style="shape-inside:url(#rect4193)">  to extract covariate data</tspan></tspan></text>
+    <path
+       style="display:inline;fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.265, 0.53;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker4515)"
+       d="m 25.4,263.525 v 9.525"
+       id="path4505"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+  </g>
+</svg>

@@ -1,0 +1,154 @@
+---
+title: "Training Point Selection"
+author: "G. Perkins"
+date: "25/08/2020"
+output: word_document
+---
+# Copyright 2020 Province of British Columbia
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+# http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and limitations under the License.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Training Point Selection 
+
+
+Collecting training point data as transects presents a number of challanges of spatial autocorrelation and balancing of uncommon points. 
+
+We tested a number of options for subsampling transect data. This included sampling at a given distance interval, where every different segment was sampled at least once irrespective of segment length. We tested 5m, 30m and 50m intervals along with random and clhs sampling methods.  
+
+Other methods to test include : subsampling transects by clhs, density of samples. 
+
+Tomislav previously used all samples with function to reduce cross validation issues (sampling from the same pair of transects)
+
+
+Methods to compare the accuracy:
+
+1) Model results: 
+- Average mis-classification values from cross validation metric. Note the accuracy changes depending on the number of classes predicted 
+
+2) Map accuracy: 
+- Compare predicted map surface with out)
+
+
+
+
+
+
+
+
+
+2.	How to select training data point/segment within defined population 
+ .	Clhc - sample is representative of feature space 
+i.	Pure random 
+ii.	Systematic 
+o	DECISION - individual triangle is the sample, we use both CLHC and random 
+iv.	What is the 'sub-sample' 
+•	DECISION Systematically 5 m using 2.5 m pixel 
+2.	Sample size 
+o	Power analysis? 
+o	DECISION use all then systematically reduce - i.e, Learning curve function in CARET - is for whole model 
+o	'death to kappa' 
+2.	Sample composition - balanced vs proportional 
+iv.	Uncommon via satellite imagery to mask out, sample via air photo interpretation 
+v.	Proportional 
+i.	Model each class as a binomial variable - standardize post hoc; vs 
+ii.	Model all classes simultaneously 
+o	DECISION Uncommon via satellite imagery, mask out; test two approaches to remainder: 1. DECISION Uncommon via satellite imagery, mask out; test two approaches to remainder: 1. each class as a binomial variable and 2. model all classes simultaneously
+
+
+
+Notes from February meeting :
+Pure and Alternate Call testing 
+
+SUB-SAMPLING PROCESS 
+1.	How to define population - how to deal with pure vs alt call data 
+i.	Prototypical? - pure central concept - i.e., single calls - Axing Zhu paper ACTION get this paper 
+ii.	 Segments with alternate calls 
+o	DECISION - test by doing both (pure call segments and alt call segments)
+
+
+2.	How to select training data point/segment within defined population 
+ .	Clhc - sample is representative of feature space 
+i.	Pure random 
+ii.	Systematic 
+o	DECISION - individual triangle is the sample, we use both CLHC and random 
+iv.	What is the 'sub-sample' 
+•	DECISION Systematically 5 m using 2.5 m pixel 
+2.	Sample size 
+o	Power analysis? 
+o	DECISION use all then systematically reduce - i.e, Learning curve function in CARET - is for whole model 
+o	'death to kappa' 
+2.	Sample composition - balanced vs proportional 
+iv.	Uncommon via satellite imagery to mask out, sample via air photo interpretation 
+v.	Proportional 
+i.	Model each class as a binomial variable - standardize post hoc; vs 
+ii.	Model all classes simultaneously 
+o	DECISION Uncommon via satellite imagery, mask out; test two approaches to remainder: 1. DECISION Uncommon via satellite imagery, mask out; test two approaches to remainder: 1. each class as a binomial variable and 2. model all classes simultaneously 
+BETWEEN STAGE 1 AND STAGE 2  
+•	ACTION for Deception and Boundary, other Test of Concept for Stage 2 sampling 
+•	Produce model free estimate of error per class (i.e., map of model disagreement), undertake stage 2 sampling in areas of highest uncertainty (cost constrained LHC) 
+ 
+MODELLING 
+Ensemble model approach is already developed (MLR with ranger, xgboost, neural nentwork train) 
+Binomial approach? 
+ 
+COVARIATES 
+What derivation of covariates are being used - standardize which script 
+ACTION - GP/CC/WM/MC resolve in conference call 
+
+
+
+
+
+
+
+
+### 1. Testing influence of training point distance. 
+
+Using the Deception datasets, I tested the influence on model output metrics. We used ranger random forest model within mlr R package. Metrics were based on repeated cross validation statistics (3 x 5 folds)
+
+mmce.test.mean=0.2769231
+
+
+References: 
+
+Resampling with mlr 
+https://mlr.mlr-org.com/articles/tutorial/resample.html
+https://mlr.mlr-org.com/articles/tutorial/measures.html
+
+
+
+
+
+
+
+
+
+
+
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

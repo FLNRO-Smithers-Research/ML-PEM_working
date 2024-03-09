@@ -1,0 +1,977 @@
+---
+title: "02_training_pt_balance"
+author: "G. Perkins"
+date: "05/01/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=FALSE,
+                      warning = FALSE, message = FALSE,
+                      results = 'show',
+                      eval = TRUE)
+```
+
+
+## NOte this script is now out of data and the findings have been converted to a script in the workflow and associcated function 
+
+04d_TrainingPt_balancing_optimisation - run models and out put balancing report
+balance_recipe.R - function
+
+Edited Nov 20th 2021
+
+
+
+
+
+
+## Training point balance methods 
+
+* The advantage of balancing datasets is to decrease the overprediction of the major classes and increase the rate of predicting the minority classes. 
+
+* To determine the impact of balancing on individual variants we tested a number of options combining **smoting** and **downsampling** using the [themis](https://themis.tidymodels.org/reference/step_smote.html) R package.
+
+* We applied a range of values to smoting and downsampling to determine the ratio by which minority and minority classes are represented in the data set. Downsampling options include a under ratio (1-100). For example an underratio of 50 will result in the majority class to be downsampled so the minority class is half as many as the majority level. 
+
+The following options were compared
+
+1) raw 
+2) downsample (under ratio = 0 - 100) ie. downsample_10
+3) smote (over ratio = 0 - 1), i.e. smote_0.5
+4) downsample and smote combination (combination of both under/over ratios)
+ie: ds_50_sm_0.3 (downsample to 50% and upsmote to 0.3)
+
+I developed a function to generate all combinations of the above to compare the final outputs.
+
+* Depending on the number of classes in each model this will need to be assessed to determine the optimum ratio of balancing. 
+
+### Calculating Balance accuracy metrics
+
+To determine the optimum balancing metrics we compared the ratio of predicted vs actual transect data for each held out test set.
+
+For each mapunit the ratio were converted to % per mapunit which ranged from -100% (underpredicted) to + Inf (over predictions). Units could be largely over predicted but only underpredicted to -100%. 
+
+To calculate an overall metric of mapunit deviation we summed the deviation from zero (firstly converting unpredicted metrics to positive values). The lowest value indicated the closest predictions to actual value per mapunit and the best balanced preprocessing method. After some preliminary work we also estimated the variance, mean and sd for each model to be used as a second measure where map unit deviation was the same or very close between models. 
+
+### Comparison of map unit devation/variance with overall model fit. 
+
+We compared each overall aspatial metrics to assess the trade off between the map unit deviation metric (above) and the overall accuracy of the model. 
+
+- **Aspatial_acc** is the accuracy per slice (i.e total accuracy over the site). 
+- **Aspatial_meanacc** is the accuracy based on the average of map units (ie: 100% correct = 0% correct). This is not correlated for the proportion of sites. 
+
+ 
+
+```{r load library, echo = FALSE}
+
+library(data.table)
+library(tidymodels)
+library(janitor)
+library(themis)
+library(dplyr)
+library(readxl)
+library(foreach)
+library(ggplot2)
+library(stringr)
+library(sf)
+library(tidyverse)
+
+```
+
+
+```{r full code for testing, echo = FALSE, eval = FALSE}
+
+# Note this was run previously with each of the balancing options run and export results.
+
+# results are contained in this folder: 
+#D:\PEM_DATA\BEC_DevExchange_Work\Deception_AOI\3_maps_analysis\models\forest\fore_mu_bgc\66
+
+# generated for ESSFmc and SBSmc2
+
+# As these were previously run we will just read in the results for this documentation
+
+# set up file structure
+AOI_dir <- "D:\\PEM_DATA\\BEC_DevExchange_Work\\Deception_AOI"
+#AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+input_pnts_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+# read in temp functions
+source(here::here('_functions', 'model_gen_tidy.R'))
+source(here::here('_functions', 'acc_metrix.R'))
+source(here::here('_functions', 'balance_recipe.R'))
+
+# #read in the fuzzy index
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic.csv")) %>%
+  dplyr::select(c(target, Pred, fVal))
+
+fMat <- data.table(fMat)
+
+bec_shp <- st_read(file.path(shapes_dir, "bec_edited.gpkg"), quiet = TRUE)
+
+
+# read in model parameters 
+model_param <- file.path(AOI_dir, "_MapUnitLegend", "models.xlsx")
+
+# set up model parameters:  
+mparam <- read_xlsx(model_param, "models") %>% filter(to_run == 1)
+map_res <- mparam$resolution
+data_res <- paste0("att_", map_res, "m")
+mname <- paste0(mparam$model_name)
+mrep <- mparam$model_rep
+
+# check which catergory of model to be produced
+mtype <- case_when(
+  str_detect(mname, "for_nf")  ~ "forest_non_forest",
+  str_detect(mname, "nf_") ~ "non_forest",
+  str_detect(mname, "fore") ~ "forest"
+)
+# get covariates
+mcov <- read_xlsx(model_param, "covariates", skip = 2) %>%
+  filter(!!sym(mparam$covariates) == 1) %>%
+  dplyr::select(covariate)
+
+# get training point sets
+mtpt <- read_xlsx(model_param, "training_pts", skip = 2) %>%
+  filter(!!sym(mparam$training_pts) == 1) %>%
+  dplyr::select(tp_code)%>%
+  pull
+
+# get the map unit level 
+mmu <- read_xlsx(model_param, "map_unit", skip = 2) %>%
+   filter(!!sym(mparam$map_unit) == 1) %>%
+  dplyr::select(legend_column)%>%
+  pull
+
+mmu <- case_when(
+  mmu == "column_mu" ~ "MapUnit", 
+  mmu == "column_ss" ~ "SiteSeries",
+  mmu == "column_ass" ~ "Association",
+  mmu == "column_cls" ~ "Class",
+  mmu == "column_grp" ~ "Group",
+  mmu == "column_typ" ~ "Type"
+)
+# set up outfolder: 
+if(!dir.exists(file.path(out_dir, mtype))){dir.create(file.path(out_dir, mtype))} 
+
+out_dir <- file.path(out_dir, mtype, mname, mrep) 
+
+# filter covars
+res_folder <- paste0(map_res, "m")
+rast_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", full.names = TRUE)
+rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in% tolower(mcov$covariate)]
+
+mcols <- gsub(".tif","", tolower(basename(rast_list)))
+
+# read in training pt data
+indata <- list.files(file.path(input_pnts_dir, data_res), paste0(mtpt,"_att.*.gpkg$"), full.names = TRUE)
+
+tpts <- st_read(indata) 
+infiles <- basename(indata) 
+
+subzones <- unique(bec_shp$MAP_LABEL)
+
+tpts  <- tpts %>%
+  cbind(st_coordinates(.)) %>%
+  mutate(fnf = ifelse(grepl(paste0(subzones, collapse = "|"), mapunit1), "forest", "non_forest")) %>%
+  st_join(st_transform(bec_shp[, "MAP_LABEL"], st_crs(.)), join = st_nearest_feature) %>%
+  st_drop_geometry() %>% 
+  dplyr::select(fnf, everything()) %>% 
+  dplyr::rename(bgc_cat = MAP_LABEL) %>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+
+# filter for forest or non_forest points as required
+if(mtype %in% c("forest", "non_forest")) {
+   tpts <- tpts %>% filter(fnf == mtype)
+} 
+
+tpts <- tpts %>%
+    mutate(target = as.factor(mapunit1),
+                          target2 = as.factor(mapunit2)) %>%
+    dplyr::select(c(target, target2, tid, slice, bgc_cat, x, y, any_of(mcols)))
+ 
+mpts <- tpts %>% dplyr::select(-c(x, y)) %>% droplevels()
+
+
+# Run models
+zones <- c(as.character(subzones))
+  
+bgc_pts_subzone <- lapply(zones, function (i){
+      pts_subzone <- mpts %>%
+        filter(str_detect(target, as.character(paste0(i, "_")))) %>%
+        droplevels()
+      
+      if(nrow(pts_subzone) == 0){ pts_subzone = NULL} else {ppts_subzone = pts_subzone }
+      pts_subzone
+  })
+  
+# generate a name for list objects removing NULL values
+names <- unlist(lapply(bgc_pts_subzone, is.null))
+zone_names <- zones[-(which(ll <- names)) ] 
+  
+# remove null or missing subzones data sets 
+bgc_pts_subzone =  bgc_pts_subzone[-which(sapply(bgc_pts_subzone, is.null))]
+names(bgc_pts_subzone) <- zone_names
+
+  # select the bgc to use 
+  xx <- names(bgc_pts_subzone[2])
+    
+  inmdata = bgc_pts_subzone[[xx]]
+  out_name = names(bgc_pts_subzone[xx])
+  
+  inmdata_all <- inmdata
+  outDir = file.path(paste(out_dir, out_name, sep = "/"))
+   
+  MU_count <- inmdata_all %>% dplyr::count(target) %>% filter(n > 1) 
+  inmdata_all <- inmdata_all %>% filter(target %in% MU_count$target)%>%
+       droplevels()
+  
+  trDat <- inmdata_all 
+
+  # Run the model 
+  table(trDat[, "target"])
+  ggplot(trDat, aes(target)) +
+    geom_bar() + 
+    theme(axis.text.x = element_text(angle = 90))
+
+  trDat_all <- trDat[complete.cases(trDat[ , 6:length(trDat)]),]
+  
+# create a subset of data by removing any variables not in model (required for model to run without error) 
+
+trDat <- trDat_all %>%
+    dplyr::select(-c( bgc_cat)) %>%
+    mutate(slice = as.factor(slice))
+
+# Cross validation loop based on slices 
+slices <- unique(trDat$slice) %>% droplevels()
+
+
+# Still to do - Add loop here to iterate through downsampling/smoting ratios. Currently runs manually via parameters below
+
+
+ds_iterations <- c(15, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+#ds_iterations <- c(1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+
+for(d in ds_iterations){
+
+  print(d)
+  
+  smote_iterations <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+  
+  for(i in smote_iterations){
+    
+  #print(i)
+
+# set up the parameters for balancing
+downsample = FALSE
+downsample_ratio = 1  # (0 - 100, Null = 1)
+smote = TRUE
+smote_ratio = i    # 0 - 1, 1 = complete smote
+
+if(downsample == TRUE & smote == FALSE) {
+    balance_name <- paste0("ds_", downsample_ratio )
+    
+  } else if(downsample == FALSE & smote == TRUE){
+    balance_name <- paste0("smote_", smote_ratio )
+    
+  } else if (downsample == TRUE & smote == TRUE) {
+    balance_name = paste0("ds_",downsample_ratio,"_sm_", smote_ratio)
+    
+  } else if (downsample == FALSE & smote == FALSE) {
+    balance_name = "raw"
+  }
+
+#balance_name
+
+# for all slices
+sresults <- foreach(k = levels(slices)) %do% {
+
+  k = levels(slices)[1]
+  ### split into train and test based on 5-site slices
+  
+  # training set
+  BGC_train <- trDat %>% dplyr::filter(!slice %in% k) %>%
+    filter(is.na(target2)) # train only on pure calls
+  BGC_train <- BGC_train %>%
+    dplyr::select(-slice, -target2) %>%
+    droplevels()
+  
+  # test set
+  BGC_test <- trDat %>% filter(slice %in% k) 
+  BGC_test_all <- BGC_test # keep for the target2 alt call. 
+  BGC_test <- BGC_test %>%
+    dplyr::select(-slice,-target2)
+  
+  ############### Define test recipes and workflow ###################
+  
+  null_recipe <- balance_optimum(downsample = downsample,
+                               downsample_ratio = downsample_ratio,
+                               smote= smote, 
+                               smote_ratio = smote_ratio)
+# null_recipe <-
+#    recipe(target ~ ., data = BGC_train) %>%
+#    update_role(tid, new_role = "id variable")  #%>%
+  
+  print(downsample)
+  print(downsample_ratio)
+  print(smote)
+  print(smote_ratio)
+  
+  set.seed(345)
+  pem_cvfold <- group_vfold_cv(
+    BGC_train,
+    v = 10,
+    repeats = 5,
+    group = tid,
+    strata = target
+  )
+ 
+  randf_spec <- rand_forest(mtry = 10, min_n = 2, trees = 200) %>% 
+    set_mode("classification") %>%
+    set_engine("ranger", importance = "permutation", verbose = FALSE) 
+    
+ pem_workflow <- workflow() %>%
+    add_recipe(null_recipe) %>%
+    add_model(randf_spec)
+  
+  #######################################################
+  PEM_rf1 <- fit(pem_workflow, BGC_train)
+  
+  final_fit <- pull_workflow_fit(PEM_rf1) # %>%pull(.predictions)
+
+  oob  <- round(PEM_rf1$fit$fit$fit$prediction.error, 3)
+
+  ######### Predict Test
+  #test_target <- as.data.frame(BGC_test$target) %>% rename(target = 1)
+  test_target <- BGC_test_all %>% dplyr::select(target, target2)
+
+  test.pred <-  predict(PEM_rf1, BGC_test)
+  test.pred <- cbind(test_target, test.pred) %>% 
+    mutate_if(is.character, as.factor)
+  # levels(train.pred$target)
+  
+  ###harmonize levels
+  targ.lev <- levels(test.pred$target)
+  pred.lev <- levels(test.pred$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  test.pred$target <- factor(test.pred$target, levels = levs)
+  test.pred$.pred_class <- factor(test.pred$.pred_class, levels = levs)
+  # output test predictions
+  
+  test.pred.out <- test.pred %>% mutate(slice = k)
+  acc.compare <- acc_metrix(test.pred) %>%
+       mutate(slice = k, 
+           acc_type = "test_estimate", 
+           oob = oob, 
+           balance = balance_name)
+
+  return(list(acc.compare))
+}
+
+# extract results from sresults
+acc_results <- lapply(sresults, function(x) x[[1]])
+acc <- as.data.frame(rbindlist(acc_results))
+
+write.csv(acc, file = paste(outDir, paste0("acc_", balance_name,".csv"), sep = "/"))
+
+  } # end of smote iteration
+
+} # end of downsample iteration 
+
+```
+
+
+
+
+### 1) ESSFmc 
+
+The following represents to top 10 methods of balancing + raw for comparison. This was based on the lowest mapunit deveiation value (mu_deviation).
+
+```{r consolidate acc outputs and graph, echo = FALSE, eval = TRUE}
+#outDir <- "D:\\PEM_DATA\\BEC_DevExchange_Work\\Deception_AOI\\3_maps_analysis\\models\\forest\\fore_mu_bgc\\66\\SBSmc2"
+
+# consolidate outputs for each balancing method
+outDir <- "D:\\PEM_DATA\\BEC_DevExchange_Work\\Deception_AOI\\3_maps_analysis\\models\\forest\\fore_mu_bgc\\66\\ESSFmc"
+
+acc_files <- as.factor(list.files(file.path(outDir), full.names = TRUE, pattern = "acc_", recursive = TRUE))
+
+acc_total <- foreach(i = levels(acc_files), .combine = rbind) %do% {
+  acc_temp <- read.csv(i) 
+  acc_temp
+}
+
+# calculate predicted vs obs pc for balancing types 
+# negative number = under predict and positive = over predicted)
+
+df <- acc_total %>%
+  group_by(target, balance) %>%
+  dplyr::select(target, balance, trans.tot, pred.tot, trans.sum) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  mutate(pred.ratio = pred.tot - trans.tot,
+         pred.obs.pc = (pred.ratio/trans.tot) * 100) %>%
+  mutate(pred.obs.pc = ifelse(pred.tot == 0, -100, pred.obs.pc),
+         pred.obs.type = ifelse(pred.obs.pc <0,"under predict", "over predict"),
+         pred.obs.total = ifelse(pred.obs.pc <0, pred.obs.pc*-1, pred.obs.pc))%>% 
+    mutate(bal_type = case_when(
+    str_detect(balance, "ds") ~ "downsample",
+    str_detect(balance, "smote") ~ "smote")) %>%
+  mutate(bal_type = ifelse(bal_type == "downsample" & str_detect(balance, "_sm_"), "downsample_smote", bal_type))
+
+
+# calculate the total % devation
+df_total <- df %>%
+  group_by(balance, bal_type) %>%
+  summarise(mu_devation = sum(pred.obs.total),
+            mu_var = var(pred.obs.total),
+            mu_mean = mean(pred.obs.total),
+            mu_sd = sd(pred.obs.total))
+
+df_raw <- df_total %>% filter(balance == "raw")
+
+df_total_order <- df_total %>% arrange(mu_devation) 
+  
+df_total_order <- df_total_order[1:10,]
+df_total_order <- df_total_order %>%
+  bind_rows(df_raw)
+
+df_total_order_table <- df_total_order %>%
+  mutate(across(where(is.numeric), round)) %>%
+  dplyr::select(-balance)
+
+
+knitr::kable(df_total_order_table)
+
+# plot the top 10 options: 
+
+ds_data <- df %>%
+   filter(balance == "raw" | balance %in%  df_total_order$balance)
+ 
+ds_plot <- ggplot( ds_data , aes(x=target, y=pred.obs.pc)) +
+    geom_bar(stat='identity',  aes(fill = pred.obs.type), width=.5) +
+    coord_flip(ylim =c(-100, 110)) +
+    facet_wrap(~ balance)
+
+text_ht <- length(unique(ds_data$target))
+
+dat_text <- df_total_order
+dat_text$label <- sprintf(
+  "%s, %s",
+ round(dat_text$mu_mean,2),
+ str_extract(dat_text$balance,"^.{0}")
+)
+
+dat_text$label2 <- sprintf(
+  "%s, %s",
+ round(dat_text$mu_sd,2),
+ str_extract(dat_text$balance,"^.{0}")
+)
+
+
+ds_plot <- ds_plot +
+  geom_text(data = dat_text,
+            size = 3,
+            mapping = aes(x = text_ht , y = 90, label = label),
+            colour = "blue"
+  ) + 
+  geom_text(data = dat_text,
+            size = 3,
+            mapping = aes(x = text_ht -1 , y = 90, label = label2),
+            colour = "black"
+  ) 
+
+#ds_plot
+
+
+# # all plots together
+#
+# # simple plot of accuracy metrics (aspatial overall accuracy)
+# dev_plot <- ggplot(df, aes(x=target, y=pred.obs.pc)) +
+#     geom_bar(stat='identity',  aes(fill = pred.obs.type), width=.5) +
+#     coord_flip(ylim =c(-100, 110)) +
+#     facet_wrap(~balance)
+#
+# # simple plot of accuracy metrics (asaptial overall accuracy)
+#
+# text_ht <- length(unique(df$target))
+#
+# dat_text <- df_total
+# dat_text$label <- sprintf(
+#   "%s, %s",
+#  round(dat_text$mu_devation,0),
+#  str_extract(dat_text$balance,"^.{0}")
+# )
+#
+# dev_plot +
+#   geom_text(data = dat_text,
+#             size = 3,
+#             mapping = aes(x = text_ht , y = 90, label = label),
+#             colour = "blue"
+#   )
+
+```
+
+The following figures show the under and over prediction of ESSFmc units within Deception. Each box represents a different balancing method applied to the model. Red represents the percent over prediction and green represents percent under prediction. The blue value represents the total map unit deviation mean value for each model, where the lowest value indicates more accurate representation (i.e. lowest over and under prediction across all units.)
+
+```{r, include = TRUE, echo = FALSE}
+ds_plot
+
+```
+
+**Take-aways**
+
+- best overall balancing for ESSFmc was a combination of downsample and smote. 
+- major improvement as compared to raw training pt set. 
+- two combinations of downsampling (ds_30_sm_0.4 and ds_30_sm_0.5) showed equal best map unit deviation, although the standard error was lower for ds_30_sm_0.5. 
+
+
+
+#### Overall accuracy vs map unit deviation 
+
+We can compare the overall map unit deviation with the aspatial accuracy measures used to assess model accuracy. We compared two aspatial accuracy measures: 1) mean aspatial accuracy (average of each map unit, i.e independant of the proportion in the landscape) and 2) overall mean (average across site). This allows us to compare the overall accuracy for each mapunit and all sites.
+
+
+1) mean aspatial accuracy. 
+Note the downsample and smote colours correspond to figure below. 
+
+```{r conso acc outputs and graph, echo = FALSE, eval = TRUE}
+bsRes <- acc_total %>%
+     mutate(across(where(is.numeric), ~ replace_na(.,0)))
+ 
+ bsRes_all <- bsRes %>% 
+   group_by(slice, acc_type, balance) %>%
+   mutate(aspat_p_acc = aspatial_acc,
+          aspat_p_meanacc = aspatial_meanacc) %>%
+   ungroup() %>%
+  # dplyr::select(c(balance, slice, aspat_p_meanacc, aspat_p_acc)) %>%
+   distinct()%>%
+   group_by(balance)%>%
+   summarise(across(where(is.numeric), #.cols = c(aspat_p_meanacc, aspat_p_acc),
+     mean, n = n()))
+
+bsRes_all <- bsRes_all %>%
+  left_join(df_total) %>% 
+  mutate(bal_type = ifelse(is.na(bal_type), "raw",bal_type))
+
+# raw values  
+ggplot(bsRes_all, aes( x = aspat_p_meanacc , y = mu_devation, colour = balance, label = balance)) + 
+   geom_point(stat = "identity" , show.legend = FALSE) +
+  xlab("Average aspatial accuracy") + 
+  ylab("Mapunit deviation") +
+    ggtitle("Mapunit Deviation vs average aspatial accuracy") +
+  facet_grid(rows = vars(bal_type))
+
+# 
+# # zoomed in values 
+# bsRes_limit <- bsRes_all %>% filter(!is.na(bal_type))
+# 
+# ggplot(bsRes_limit, aes( x = aspat_p_meanacc , y = mu_devation, colour = balance, label = balance)) + 
+#    geom_point(stat = "identity", show.legend = FALSE) +
+#    ylim(290,500) +
+#    xlim(65,81)+
+#   xlab("Average aspatial accuracy") + 
+#   ylab("Mapunit deviation") +
+#     ggtitle("Mapunit deviation vs average aspatial accuracy") +
+#   facet_grid(rows = vars(bal_type))
+
+```
+
+**Take aways**
+
+- balancing has a large impact on the average mapunit (ie. map unit accuracy independant of proportion of transect). 
+- large improvement from raw 
+- downsampling and smoting has the widest range in improvement
+
+
+
+2) overall aspatial accuracy 
+
+```{r,echo = FALSE}
+
+#bsRes_all <- bsRes_all %>% filter(!is.na(bal_type))
+# raw plot 
+ggplot(bsRes_all, aes( x = aspat_p_acc , y = mu_devation, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab("Overall Aspatial accuracy") + 
+  ylab("Mapunit deviation") + 
+  ggtitle("Mapunit deviation vs overall aspatial accuracy") + 
+  facet_grid(rows = vars(bal_type))
+
+# # # zoomed in plot
+# ggplot(bsRes_all, aes( x = aspat_p_acc , y = mu_devation, colour = balance)) +
+#   geom_point(stat = "identity", show.legend = FALSE) +
+#   ylim(0,550) +
+#   xlim(65,75)+
+#   xlab("Overall Aspatial accuracy") +
+#   ylab("Mapunit deviation") +
+#   ggtitle("Mapunit deviation vs overall aspatial accuracy") +
+#   facet_grid(rows = vars(bal_type))
+
+# # zoomed in plot
+# ggplot(bsRes_all, aes( x = aspat_p_acc , y = mu_devation, colour = balance)) + 
+#   geom_point(stat = "identity") + 
+#   ylim(0,1000) +
+#   xlim(65,75)+
+#   xlab("Aspatial primary accuracy") + 
+#   ylab("Map unit deviation") + 
+#   ggtitle("Map Unit predicted Deviation vs average aspatial accuracy") + 
+#   facet_grid(rows = vars(bal_type))
+
+# library(gridExtra)
+# out <- by(data = bsRes_all, INDICES = bsRes_all$bal_type, FUN = function(m) {
+#       m <- droplevels(m)
+#       m <- ggplot(m, aes(x = aspat_p_acc , y = mu_devation, group=1, colour = balance)) + 
+#          geom_point(stat = "identity", size = 2) +
+#          ylim(0,1000) +
+#          xlim(81,87) +
+#          xlab("Aspatial primary accuracy") + 
+#   ylab("Map unit deviation") 
+#    })
+# do.call(grid.arrange, out)
+# 
+# # If you want to supply the parameters to grid.arrange
+# do.call(grid.arrange, c(out, ncol=3))
+
+```
+
+**Take aways**
+
+- balancing has less impact on overall aspatial accuracy (ie. overall aspatial site accuracy). 
+- still improvement from raw 
+
+
+
+3) Aspatial overall accuracy vs Aspatial Ave Accuracy (map unit).
+
+```{r, echo = FALSE}
+# highlight the downsample and smote option 
+ds_smote <- bsRes_all %>% 
+  filter(bal_type %in% "downsample_smote") %>%
+  mutate(ds_type = word(balance, 1, sep = "\\_sm_")) %>%
+  mutate(ds_type = word(ds_type, 2, sep = "\\_"))
+ 
+# overall accuracy vs average map unit accuracy 
+ov_plot1 <- ggplot(ds_smote, aes( x = aspat_p_meanacc, y = aspat_p_acc, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab(" Mean Aspatial accuracy") + 
+  ylim(50,76) +
+  xlim(50,76)+
+  ylab("Overall aspatial accuracy") + 
+  ggtitle("Mean aspatial accuracy vs overall aspatial accuracy") 
+
+ov_plot2 <- ggplot(ds_smote, aes( x = aspat_p_meanacc, y = aspat_p_acc, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab("Mean Aspatial accuracy") + 
+  ylab("Overall aspatial accuracy") + 
+ggtitle("Mean aspatial accuracy vs overall aspatial accuracy (grouped by downsample under ratio)") +
+  facet_grid(rows = vars(ds_type))
+
+
+```
+We can compare the aspatial results from balancing by plotting the overall accuracy with the mean map unit accuracy.  
+
+```{r, echo = FALSE}
+ov_plot1
+```
+
+**Take aways** 
+
+- impact of balancing shows a trade off between the map unit accuracy and overall accuracy. 
+- the lower downsample ratio (ds 15, 20, 30) is higher average accuracy but lower overall accuracy. 
+- like wise very low downsampling (90, 80) shows lower overall and average accuracy.
+
+- sweet spot in the middle around 40 - 50 ratio
+
+
+```{r, echo = FALSE}
+ov_plot2
+
+```
+
+
+
+4) Other Accuracy measures. 
+
+We can also compare the map unit deviation with other accuracy measures 1) spatial accuracy and 2) mcc
+
+
+```{r, echo = FALSE}
+
+bsRes_all <- bsRes_all %>% filter(!is.na(bal_type))
+# raw plot 
+spat_plot <- ggplot(bsRes_all, aes( x = spat_p, y = mu_devation, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab("Spatial accuracy") + 
+  ylab("Mapunit deviation") + 
+  ggtitle("Mapunit deviation vs spatial accuracy") + 
+  facet_grid(rows = vars(bal_type))
+
+spat_plot
+
+
+# raw plot 
+mcc_plot <- ggplot(bsRes_all, aes( x = mcc, y = mu_devation, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab("mcc") + 
+  ylab("Mapunit deviation") + 
+  ggtitle("Mapunit deviation vs mcc") + 
+  facet_grid(rows = vars(bal_type))
+
+mcc_plot
+
+```
+
+
+**Take away** 
+
+- method of balancing can also impact the overall accuracy measure (spatial and mcc)
+
+
+
+
+
+
+
+
+
+# SBSmc2 
+
+The top 10 (lowest map unit deviation) and raw metrics are shown below.
+
+```{r consolidate acc outputs and graph for SBSmc2, echo = FALSE, eval = TRUE}
+
+outDir <- "D:\\PEM_DATA\\BEC_DevExchange_Work\\Deception_AOI\\3_maps_analysis\\models\\forest\\fore_mu_bgc\\66\\SBSmc2"
+
+acc_files <- as.factor(list.files(file.path(outDir), full.names = TRUE, pattern = "acc_", recursive = TRUE))
+
+acc_total <- foreach(i = levels(acc_files), .combine = rbind) %do% {
+  acc_temp <- read.csv(i) 
+  acc_temp
+}
+
+# calculate predicted vs obs pc for balancing types 
+
+# negative number = under predict and positive = over predicted)
+
+df <- acc_total %>%
+  group_by(target, balance) %>%
+  dplyr::select(target, balance, trans.tot, pred.tot, trans.sum) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  mutate(pred.ratio = pred.tot - trans.tot,
+         pred.obs.pc = (pred.ratio/trans.tot) * 100) %>%
+  mutate(pred.obs.pc = ifelse(pred.tot == 0, -100, pred.obs.pc),
+         pred.obs.type = ifelse(pred.obs.pc <0,"under predict", "over predict"),
+         pred.obs.total = ifelse(pred.obs.pc <0, pred.obs.pc*-1, pred.obs.pc)) %>%
+#  mutate(balance = ifelse(balance == "downsample_25_smote", "ds_25_smote", balance)) %>%
+  mutate(bal_type = case_when(
+    str_detect(balance, "ds") ~ "downsample",
+    str_detect(balance, "smote") ~ "smote")) %>%
+  mutate(bal_type = ifelse(bal_type == "downsample" & str_detect(balance, "_sm_"), "downsample_smote", bal_type))
+
+
+# calculate the total % devation
+df_total <- df %>%
+  group_by(balance, bal_type) %>%
+  summarise(mu_devation = sum(pred.obs.total),
+            mu_var = var(pred.obs.total),
+            mu_mean = mean(pred.obs.total),
+            mu_sd = sd(pred.obs.total))
+
+df_raw <- df_total %>% filter(balance == "raw")
+
+df_total_order <- df_total %>% arrange(mu_devation) 
+  
+df_total_order <- df_total_order[1:10,]
+df_total_order <- df_total_order %>%
+  bind_rows(df_raw)
+
+df_total_order_table <- df_total_order %>%
+  mutate(across(where(is.numeric), round)) %>%
+  dplyr::select(-balance)
+
+
+knitr::kable(df_total_order_table)
+
+# plot the top 10 options: 
+
+ds_data <- df %>%
+   filter(balance == "raw" | balance %in%  df_total_order$balance)
+ 
+ds_plot <- ggplot( ds_data , aes(x=target, y=pred.obs.pc)) +
+    geom_bar(stat='identity',  aes(fill = pred.obs.type), width=.5) +
+    coord_flip(ylim =c(-100, 110)) +
+    facet_wrap(~ balance)
+
+text_ht <- length(unique(ds_data$target))
+
+dat_text <- df_total_order
+dat_text$label <- sprintf(
+  "%s, %s",
+ round(dat_text$mu_mean,2),
+ str_extract(dat_text$balance,"^.{0}")
+)
+
+dat_text$label2 <- sprintf(
+  "%s, %s",
+ round(dat_text$mu_sd,2),
+ str_extract(dat_text$balance,"^.{0}")
+)
+
+
+ds_plot <- ds_plot +
+  geom_text(data = dat_text,
+            size = 3,
+            mapping = aes(x = text_ht , y = 90, label = label),
+            colour = "blue"
+  ) + 
+  geom_text(data = dat_text,
+            size = 3,
+            mapping = aes(x = text_ht -1 , y = 90, label = label2),
+            colour = "black"
+  ) 
+
+#ds_plot
+```
+
+### Over and Under prediction by map unit 
+
+Note the value in blue represent overall map unit deviation. Lower numbers represent less over or under prediction of units overall. 
+
+```{r sbsmc2, echo = FALSE}
+ds_plot
+
+```
+
+
+### Overall accuracy vs map unit deviation & overall accuracy
+
+1) average aspatial accuracy 
+
+```{r consolidate acc outputs and graphsbsmc2, echo = FALSE, eval = TRUE}
+bsRes <- acc_total %>%
+     mutate(across(where(is.numeric), ~ replace_na(.,0)))
+ 
+bsRes_all <- bsRes %>% 
+   group_by(slice, acc_type, balance) %>%
+   mutate(aspat_p_acc = aspatial_acc,
+          aspat_p_meanacc = aspatial_meanacc) %>%
+   ungroup() %>%
+  # dplyr::select(c(balance, slice, aspat_p_meanacc, aspat_p_acc)) %>%
+   distinct()%>%
+   group_by(balance)%>%
+   summarise(across(where(is.numeric), #.cols = c(aspat_p_meanacc, aspat_p_acc),
+     mean, n = n()))
+ 
+bsRes_all <- bsRes_all %>%
+  left_join(df_total)
+
+# raw values  
+ggplot(bsRes_all, aes( x = aspat_p_meanacc , y = mu_devation, colour = balance, label = balance)) + 
+   geom_point(stat = "identity", show.legend = FALSE) +
+  #ylim(0,550)+
+  xlab("Average aspatial accuracy") + 
+  ylab("Mapunit deviation") +
+    ggtitle("Mapunit Deviation vs average aspatial accuracy") +
+  facet_grid(rows = vars(bal_type))
+
+```
+
+2) Overall aspatial accuracy 
+
+```{r, echo = FALSE}
+
+bsRes_all1 <- bsRes_all %>% filter(!is.na(bal_type))
+# raw plot 
+ggplot(bsRes_all1, aes( x = aspat_p_acc , y = mu_devation, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab("Overall Aspatial accuracy") + 
+  ylab("Mapunit deviation") + 
+  ggtitle("Mapunit deviation vs overall aspatial accuracy") + 
+  facet_grid(rows = vars(bal_type))
+
+
+# # zoomed in plot
+# ggplot(bsRes_all1, aes( x = aspat_p_acc , y = mu_devation, colour = balance)) + 
+#   geom_point(stat = "identity", show.legend = FALSE) + 
+#   ylim(0,550) +
+#   xlim(81,87)+
+#   xlab("Overall Aspatial accuracy") + 
+#   ylab("Mapunit deviation") + 
+#   ggtitle("Mapunit deviation vs overall aspatial accuracy") + 
+#   facet_grid(rows = vars(bal_type)) 
+
+```
+
+
+
+3) Aspatial overall accuracy vs mean Accuracy.
+
+```{r, echo = FALSE}
+# highlight the downsample and smote option 
+ds_smote <- bsRes_all %>% 
+  filter(bal_type %in% "downsample_smote") %>%
+  mutate(ds_type = word(balance, 1, sep = "\\_sm_")) %>%
+  mutate(ds_type = word(ds_type, 2, sep = "\\_"))
+ 
+# overall accuracy vs average map unit accuracy 
+ov_plot1 <- ggplot(ds_smote, aes( x = aspat_p_meanacc, y = aspat_p_acc, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab(" Mean Aspatial accuracy") + 
+  #ylim(50,76) +
+  #xlim(50,76)+
+  ylab("Overall aspatial accuracy") + 
+  ggtitle("Mean aspatial accuracy vs overall aspatial accuracy") 
+
+ov_plot2 <- ggplot(ds_smote, aes( x = aspat_p_meanacc, y = aspat_p_acc, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab("Mean Aspatial accuracy") + 
+  ylab("Overall aspatial accuracy") + 
+ggtitle("Mean aspatial accuracy vs overall aspatial accuracy") +
+  facet_grid(rows = vars(ds_type))
+
+```
+We can compare the aspatial results from balancing by plotting the overall accuracy with the mean map unit accuracy.  
+
+```{r, echo = FALSE}
+ov_plot1
+```
+
+
+
+```{r, echo = FALSE}
+ov_plot2
+```
+
+
+4) Other Accuracy measures
+We can also compare the map unit deviation with other accuracy measures 1) spatial accuracy and 2) mcc
+
+
+```{r, echo = FALSE}
+bsRes_all <- bsRes_all %>% filter(!is.na(bal_type))
+# raw plot 
+spat_plot <- ggplot(bsRes_all, aes( x = spat_p, y = mu_devation, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab("Overall Aspatial accuracy") + 
+  ylab("Mapunit deviation") + 
+  ggtitle("Mapunit deviation vs spatial accuracy") + 
+  facet_grid(rows = vars(bal_type))
+
+spat_plot
+
+
+# raw plot 
+mcc_plot <- ggplot(bsRes_all, aes( x = mcc, y = mu_devation, colour = balance)) + 
+  geom_point(stat = "identity", show.legend = FALSE) + 
+  xlab("Overall Aspatial accuracy") + 
+  ylab("Mapunit deviation") + 
+  ggtitle("Mapunit deviation vs mcc") + 
+  facet_grid(rows = vars(bal_type))
+
+mcc_plot
+
+```
+

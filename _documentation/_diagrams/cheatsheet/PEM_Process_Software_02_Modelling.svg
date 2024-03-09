@@ -1,0 +1,1511 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 215.9 279.4"
+   version="1.1"
+   id="svg8"
+   inkscape:version="1.0.2-2 (e86c870879, 2021-01-15)"
+   sodipodi:docname="PEM_Process_Software_02_Modelling.svg">
+  <defs
+     id="defs2">
+    <marker
+       style="overflow:visible;"
+       id="marker6065"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path6063" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker5759"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path5757" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker5635"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path5633" />
+    </marker>
+    <rect
+       x="50.8"
+       y="155.575"
+       width="60.325"
+       height="34.925"
+       id="rect4939" />
+    <marker
+       style="overflow:visible;"
+       id="marker4897"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path4895" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker4693"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path4691" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker4593"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path4591" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker4515"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path4513" />
+    </marker>
+    <rect
+       x="225.425"
+       y="133.35"
+       width="76.2"
+       height="15.875"
+       id="rect4501" />
+    <rect
+       x="225.425"
+       y="107.95"
+       width="82.55"
+       height="15.875"
+       id="rect4167" />
+    <rect
+       x="165.1"
+       y="107.95"
+       width="44.45"
+       height="19.05"
+       id="rect4135" />
+    <rect
+       x="165.1"
+       y="60.325"
+       width="41.275"
+       height="34.925"
+       id="rect2994" />
+    <rect
+       x="111.125"
+       y="60.325"
+       width="50.8"
+       height="12.7"
+       id="rect2796" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="15.875"
+       id="rect2788" />
+    <rect
+       x="6.35"
+       y="34.925"
+       width="157.76877"
+       height="31.58595"
+       id="rect2533" />
+    <rect
+       x="142.875"
+       y="263.525"
+       width="63.5"
+       height="15.875"
+       id="rect8672" />
+    <marker
+       style="overflow:visible;"
+       id="marker8426"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path8424" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker8366"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         id="path8364" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker7951"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path7949" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker7917"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true"
+       inkscape:collect="always">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path7915" />
+    </marker>
+    <rect
+       x="165.1"
+       y="107.95"
+       width="44.45"
+       height="31.75"
+       id="rect7579" />
+    <rect
+       x="114.3"
+       y="95.25"
+       width="50.8"
+       height="19.05"
+       id="rect7563" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.45"
+       height="9.52505"
+       id="rect7492" />
+    <rect
+       x="123.7789"
+       y="-8.3699649"
+       width="128.12484"
+       height="6.4384345"
+       id="rect7486" />
+    <rect
+       x="6.35"
+       y="19.05"
+       width="38.1"
+       height="8.3133468"
+       id="rect7401" />
+    <rect
+       x="114.3"
+       y="57.15"
+       width="44.45"
+       height="19.05"
+       id="rect7379" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="31.750006"
+       id="rect7373" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="44.45"
+       height="19.05"
+       id="rect7367" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="50.8"
+       height="19.05"
+       id="rect7361" />
+    <rect
+       x="50.8"
+       y="31.75"
+       width="57.15"
+       height="69.85"
+       id="rect7345" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.35"
+       id="rect7333" />
+    <rect
+       x="12.7"
+       y="38.1"
+       width="27.949184"
+       height="14.505702"
+       id="rect7327" />
+    <marker
+       style="overflow:visible;"
+       id="Arrow2Mend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#666666;fill-opacity:1"
+         id="path7038" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow2Lend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Lend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(1.1) rotate(180) translate(1,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round;stroke:#000000;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         id="path7032" />
+    </marker>
+    <rect
+       x="57.15"
+       y="38.1"
+       width="10.954232"
+       height="3.8153361"
+       id="rect6558" />
+    <rect
+       x="44.45"
+       y="31.75"
+       width="57.15"
+       height="19.05"
+       id="rect3133" />
+    <rect
+       x="9.3357306"
+       y="9.6576519"
+       width="77.049888"
+       height="10.025773"
+       id="rect21" />
+    <symbol
+       id="MagneticDrum">
+      <title
+         id="title2805">Magnetic Drum (Direct Access)</title>
+      <desc
+         id="desc2807">Magnetic drum. (ISO)</desc>
+      <path
+         d="m 6.6145833,30.427083 a 17.197917,17.197917 0 0 1 0,-21.1666663 H 33.072917 a 17.197917,17.197917 0 0 1 0,21.1666663 z"
+         style="stroke-width:0.529167"
+         id="path2809" />
+      <path
+         d="m 33.072917,30.427083 a 17.197917,17.197917 0 0 1 0,-21.1666663"
+         style="fill:none;stroke-width:0.529167;stroke-linecap:butt"
+         id="path2811" />
+    </symbol>
+    <symbol
+       id="Process">
+      <title
+         id="title2602">Process</title>
+      <desc
+         id="desc2604">Any processing function.</desc>
+      <rect
+         x="3.96875"
+         y="9.260417"
+         width="31.75"
+         height="21.166666"
+         style="stroke-width:0.529167"
+         id="rect2606" />
+    </symbol>
+    <symbol
+       id="AuxillaryOp">
+      <title
+         id="title2667">Auxiliary Operation</title>
+      <desc
+         id="desc2669">Offline operation.</desc>
+      <rect
+         x="9.260417"
+         y="9.260417"
+         width="21.166666"
+         height="21.166666"
+         style="stroke-width:0.529167"
+         id="rect2671" />
+    </symbol>
+    <symbol
+       id="CommunicationLink">
+      <title
+         id="title2751">Communication Link</title>
+      <desc
+         id="desc2753">Transcommunication link.</desc>
+      <path
+         d="M 17.197917,6.6145833 V 22.489583 l 5.291666,-5.291666 v 15.875"
+         style="fill:none;stroke-width:2"
+         id="path2755" />
+    </symbol>
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7401-5" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="51.099"
+       height="6.8257166"
+       id="rect7401-1" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414-2" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="34.279617"
+       height="7.1476383"
+       id="rect7401-2" />
+    <rect
+       x="6.3499999"
+       y="19.049999"
+       width="38.099998"
+       height="8.3133469"
+       id="rect7414-20" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect7492-0" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.450001"
+       height="57.150002"
+       id="rect7505" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="22.808288"
+       id="rect7647" />
+    <symbol
+       id="Document">
+      <title
+         id="title2616">Document</title>
+      <desc
+         id="desc2618">A document or report</desc>
+      <path
+         d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+         style="stroke-width:2"
+         id="path2620" />
+    </symbol>
+    <symbol
+       id="Extract">
+      <title
+         id="title2681">Extract</title>
+      <desc
+         id="desc2683">Removal of one or more specific sets of times from a set. (ISO)</desc>
+      <path
+         d="M 9.2604167,30.427083 19.84375,11.90625 30.427083,30.427083 Z"
+         style="stroke-width:2"
+         id="path2685" />
+    </symbol>
+    <rect
+       x="12.7"
+       y="63.5"
+       width="29.942618"
+       height="14.848018"
+       id="rect7861" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="29.977972"
+       id="rect7868" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.35"
+       id="rect8307" />
+    <rect
+       x="50.8"
+       y="57.15"
+       width="57.15"
+       height="22.808288"
+       id="rect8530" />
+    <rect
+       x="114.3"
+       y="95.25"
+       width="50.8"
+       height="19.05"
+       id="rect8534" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect8540" />
+    <rect
+       x="9.3357306"
+       y="9.6576519"
+       width="77.049888"
+       height="10.025773"
+       id="rect8664" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect7333-1" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="25.4"
+       height="6.3499999"
+       id="rect2608" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect2784" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="56.91872"
+       height="48.098904"
+       id="rect2966" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="50.86849"
+       height="57.15"
+       id="rect3016" />
+    <rect
+       x="12.7"
+       y="38.1"
+       width="27.949184"
+       height="14.505702"
+       id="rect3031" />
+    <rect
+       x="50.8"
+       y="60.325"
+       width="57.15"
+       height="19.512572"
+       id="rect3035" />
+    <rect
+       x="225.425"
+       y="107.95"
+       width="82.55"
+       height="15.875"
+       id="rect4487" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect4497" />
+    <rect
+       x="165.1"
+       y="107.95"
+       width="47.625"
+       height="19.579142"
+       id="rect4935" />
+    <rect
+       x="50.8"
+       y="31.75"
+       width="57.15"
+       height="76.72908"
+       id="rect4947" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect5506" />
+    <rect
+       x="12.7"
+       y="38.1"
+       width="27.949184"
+       height="14.505702"
+       id="rect5523" />
+    <rect
+       x="12.7"
+       y="63.5"
+       width="31.528701"
+       height="10.050482"
+       id="rect5529" />
+    <rect
+       x="114.3"
+       y="31.75"
+       width="44.45"
+       height="9.52505"
+       id="rect5911" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1.5690362"
+     inkscape:cx="553.14674"
+     inkscape:cy="868.35073"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     inkscape:document-rotation="0"
+     showgrid="true"
+     units="in"
+     guidetolerance="20"
+     gridtolerance="10"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     showguides="true"
+     inkscape:guide-bbox="true">
+    <inkscape:grid
+       type="xygrid"
+       id="grid3089"
+       units="in"
+       spacingx="3.175"
+       spacingy="3.175"
+       dotted="false"
+       snapvisiblegridlinesonly="false" />
+    <sodipodi:guide
+       position="165.1,247.65"
+       orientation="1,0"
+       id="guide7549" />
+    <sodipodi:guide
+       position="80.870405,257.175"
+       orientation="0,-1"
+       id="guide8610" />
+    <sodipodi:guide
+       position="6.35,180.975"
+       orientation="1,0"
+       id="guide2549" />
+    <sodipodi:guide
+       position="8.2104445,110.21859"
+       orientation="0,-1"
+       id="guide5845" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g5956">
+      <g
+         id="use4489"
+         style="fill:#aaccee;stroke:#000000;stroke-width:0.25079;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         transform="matrix(1.2,0,0,3.3123694,1.5875,127.81426)">
+        <title
+           id="title5613">Process</title>
+        <desc
+           id="desc5615">Any processing function.</desc>
+        <rect
+           x="3.96875"
+           y="9.260417"
+           width="31.75"
+           height="21.166666"
+           style="stroke-width:0.25079;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect5617" />
+      </g>
+      <text
+         xml:space="preserve"
+         id="text4493"
+         style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect4497);"
+         transform="translate(-3.6704757,96.934885)"
+         x="5.7007747"
+         y="0"><tspan
+           x="12.699219"
+           y="66.621259"><tspan
+             style="text-align:start;text-anchor:start">Create
+</tspan></tspan><tspan
+           x="12.699219"
+           y="71.030988"><tspan
+             style="text-align:start;text-anchor:start">Model(s)</tspan></tspan></text>
+      <g
+         id="g7884-9"
+         style="opacity:0.996;fill:#00ff00;stroke:#000000;stroke-width:0.603807;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         transform="matrix(0.8,0,0,0.85714304,12.7,176.21249)">
+        <title
+           id="title7878-2">Document</title>
+        <desc
+           id="desc7880-9">A document or report</desc>
+        <path
+           d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+           style="fill:#00ff00;stroke-width:0.603807;stroke-miterlimit:4;stroke-dasharray:none"
+           id="path7882-2" />
+      </g>
+      <text
+         xml:space="preserve"
+         id="text5504"
+         style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect5506);"
+         transform="translate(-3.9978375,123.676)"
+         x="12.967347"
+         y="0"><tspan
+           x="23.167891"
+           y="66.621259"><tspan
+             style="text-align:center;text-anchor:middle">Model
+</tspan></tspan><tspan
+           x="22.616675"
+           y="71.030988"><tspan
+             style="text-align:center;text-anchor:middle">Report</tspan></tspan></text>
+      <g
+         id="g5521"
+         transform="matrix(0.66280033,0,0,1,11.84649,142.875)"
+         style="fill:#00ff00;stroke:#000000;stroke-width:0.00122831;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke">
+        <use
+           xlink:href="#MagneticDrum"
+           style="fill:#00ff00;stroke:#000000;stroke-width:0.00122657;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+           id="use5513"
+           x="0"
+           y="0"
+           width="100%"
+           height="100%"
+           transform="matrix(1.1142646,0,0,0.90000003,3.497899,55.165624)" />
+      </g>
+      <text
+         xml:space="preserve"
+         id="text5527"
+         style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect5529);"
+         transform="translate(-3.4617865,148.3742)"
+         x="12.967347"
+         y="0"><tspan
+           x="23.167891"
+           y="66.621259"><tspan
+             style="text-align:center;text-anchor:middle">Model
+</tspan></tspan><tspan
+           x="22.719167"
+           y="71.030988"><tspan
+             style="text-align:center;text-anchor:middle">Object</tspan></tspan></text>
+      <path
+         style="fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 9.525,169.18141 V 215.9"
+         id="path5621"
+         inkscape:connector-type="polyline"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc" />
+      <path
+         style="fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker5759)"
+         d="m 9.525,215.9 h 6.840403"
+         id="path5623"
+         inkscape:connector-type="polyline"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc" />
+      <path
+         style="fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker5635)"
+         d="M 9.5249999,190.49999 H 15.875"
+         id="path5625"
+         inkscape:connector-type="polyline"
+         inkscape:connector-curvature="0" />
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="148.87607"
+       y="195.03952"
+       id="text5903"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan5901"
+         x="148.87607"
+         y="195.03952"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">UPDATE NEEDED</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text19"
+       style="font-size:3.73071px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect21);"
+       transform="matrix(2.6476912,0,0,2.6476912,-19.172443,-20.365632)"
+       x="31.12818"
+       y="0"><tspan
+         x="19.596762"
+         y="12.959007"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold'">BC's Predictive Ecosystem 
+</tspan></tspan><tspan
+         x="29.96278"
+         y="17.622394"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:'sans-serif Bold'">Mapping Process
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text6556"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect6558);" />
+    <use
+       xlink:href="#MagneticDrum"
+       style="fill:#aaccee;stroke:#000000;stroke-width:0.499292;stroke-miterlimit:4;stroke-dasharray:none"
+       id="use6632"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.1142646,0,0,0.90000003,3.4442175,51.990624)" />
+    <text
+       xml:space="preserve"
+       id="text7325"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7327);stroke-width:0.5;stroke-miterlimit:4;stroke-dasharray:none;"
+       transform="translate(-3.1283479,27.739435)"
+       x="8.1803846"
+       y="0"><tspan
+         x="18.165298"
+         y="41.220868"><tspan
+           style="text-align:center;text-anchor:middle;stroke-width:0.5;stroke-miterlimit:4;stroke-dasharray:none">Covariate
+</tspan></tspan><tspan
+         x="20.066131"
+         y="45.630593"><tspan
+           style="text-align:center;text-anchor:middle;stroke-width:0.5;stroke-miterlimit:4;stroke-dasharray:none">Rasters</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7343"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7345);"
+       transform="translate(0,101.59995)"><tspan
+         x="50.800781"
+         y="34.247003"><tspan
+           style="shape-inside:url(#rect7345)">- 25% of the data is randomly selected 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="37.774778"><tspan
+           style="shape-inside:url(#rect7345)">  from across all of the training data.  
+</tspan></tspan><tspan
+         x="50.800781"
+         y="41.302553"><tspan
+           style="shape-inside:url(#rect7345)">- The emprical is stratified by class to 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="44.830328"><tspan
+           style="shape-inside:url(#rect7345)">  ensure testing and training data 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="48.358103"><tspan
+           style="shape-inside:url(#rect7345)">  contain the same ratio of empirical 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="51.885877"><tspan
+           style="shape-inside:url(#rect7345)">  data.  
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7359"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7361);" />
+    <text
+       xml:space="preserve"
+       id="text7377"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;line-height:1.25;font-family:'Baskerville Old Face';-inkscape-font-specification:'Baskerville Old Face';white-space:pre;shape-inside:url(#rect7379);" />
+    <text
+       xml:space="preserve"
+       style="font-size:3.52777px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+       x="0"
+       y="53.117085"
+       id="text7385"><tspan
+         sodipodi:role="line"
+         id="tspan7383"
+         x="0"
+         y="53.117085"
+         style="stroke-width:0.264583" /></text>
+    <text
+       xml:space="preserve"
+       id="text7399"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401);"
+       transform="translate(-0.16353975,27.553367)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan
+           style="shape-inside:url(#rect7401)">Steps</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-7"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-5);"
+       transform="translate(44.093951,27.629329)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>Details</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-9"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-1);"
+       transform="translate(107.55332,27.593675)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>BEC DevExchange</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7399-5"
+       style="font-size:4.58611px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7401-2);"
+       transform="translate(158.33115,27.625095)"><tspan
+         x="6.3496094"
+         y="23.108414"><tspan>pemgeneratr</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7484"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7486);" />
+    <text
+       xml:space="preserve"
+       id="text7490"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7492);"
+       transform="translate(0,101.59995)"><tspan
+         x="114.30078"
+         y="34.247003"><tspan
+           style="shape-inside:url(#rect7492)">05a_PEM_Build_Model.Rmd</tspan></tspan></text>
+    <g
+       id="g7884"
+       style="opacity:0.996;fill:#aaccee;stroke:#000000;stroke-width:0.456435;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(1.2,0,0,1,-100.0125,181.23965)">
+      <title
+         id="title7878">Document</title>
+      <desc
+         id="desc7880">A document or report</desc>
+      <path
+         d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+         style="stroke-width:0.456435;stroke-miterlimit:4;stroke-dasharray:none"
+         id="path7882" />
+    </g>
+    <g
+       id="g7851"
+       transform="translate(-101.6,19.049984)">
+      <use
+         xlink:href="#Process"
+         style="fill:#aaccee;stroke:#000000;stroke-width:0.833333"
+         id="use6657"
+         x="0"
+         y="0"
+         width="100%"
+         height="100%"
+         transform="matrix(1.2,0,0,1.2000001,1.5875,96.837499)" />
+      <text
+         xml:space="preserve"
+         id="text7331"
+         style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7333);"
+         transform="translate(1.8073824,55.001983)"><tspan
+           x="12.699219"
+           y="66.621259"><tspan>Sample Plan</tspan></tspan></text>
+    </g>
+    <g
+       id="use7703"
+       style="opacity:0.996;fill:#aaccee;stroke:#000000;stroke-width:0.456435;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(1.2,0,0,1,-100.0125,149.48965)">
+      <title
+         id="title7783">Document</title>
+      <desc
+         id="desc7785">A document or report</desc>
+      <path
+         d="m 3.96875,9.2604167 h 31.75 V 25.135417 C 22.489583,23.8125 17.197917,34.395833 3.96875,27.78125 Z"
+         style="stroke-width:0.456435;stroke-miterlimit:4;stroke-dasharray:none"
+         id="path7787" />
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:3.52777px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle;opacity:0.996;stroke-width:0.264583"
+       x="-75.755585"
+       y="166.40398"
+       id="text7627"><tspan
+         sodipodi:role="line"
+         id="tspan7625"
+         x="-75.755585"
+         y="166.40398"
+         style="text-align:center;text-anchor:middle;stroke-width:0.264583">Sampling Map </tspan><tspan
+         sodipodi:role="line"
+         x="-75.755585"
+         y="170.81369"
+         style="text-align:center;text-anchor:middle;stroke-width:0.264583"
+         id="tspan7629">Production</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text7857"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7861);"
+       transform="translate(-103.86918,131.22637)"
+       x="8.584322"
+       y="0"><tspan
+         x="18.827333"
+         y="66.621259"><tspan
+           style="text-align:center;text-anchor:middle">Field Data
+</tspan></tspan><tspan
+         x="18.946188"
+         y="71.030988"><tspan
+           style="text-align:center;text-anchor:middle">Collection</tspan></tspan></text>
+    <path
+       style="fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker7951)"
+       d="m -76.2,152.40007 v 6.35"
+       id="path7911"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <path
+       style="display:inline;fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker7917)"
+       d="m -76.2,177.80007 v 12.7"
+       id="path7913"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.233708;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow2Mend)"
+       d="m -76.2,82.55 v 44.45004"
+       id="path7009"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <use
+       xlink:href="#Process"
+       style="fill:#aaccee;stroke:#000000;stroke-width:0.833333"
+       id="use8299"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.2,0,0,0.74999999,-100.0125,218.47976)" />
+    <text
+       xml:space="preserve"
+       id="text8303"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect8307);"
+       transform="translate(-101.73033,167.66029)"
+       x="10.411085"
+       y="0"><tspan
+         x="14.77301"
+         y="66.621259"><tspan
+           style="text-align:center;text-anchor:middle">Data Import</tspan></tspan></text>
+    <path
+       style="display:inline;fill:#666666;fill-rule:evenodd;stroke:#000000;stroke-width:0.296279;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker8426)"
+       d="m -76.2,209.55007 v 15.875"
+       id="path8422"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <text
+       xml:space="preserve"
+       id="text8662"
+       style="font-size:2.39832px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect8664);"
+       transform="matrix(2.6476912,0,0,2.6476912,-19.172443,5.5249945)"
+       x="31.12818"
+       y="0"><tspan
+         x="36.177325"
+         y="11.780154"><tspan
+           style="font-weight:bold;font-size:2.39832px">Part B: Modelling</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text8670"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:end;white-space:pre;shape-inside:url(#rect8672);"
+       x="1.6932656"
+       y="0"
+       transform="translate(0.08176987,-3.4203097)"><tspan
+         x="189.54779"
+         y="266.02239"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">C. Chisholm
+</tspan></tspan><tspan
+         x="206.375"
+         y="269.55016"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">
+</tspan></tspan><tspan
+         x="190.32362"
+         y="273.07794"><tspan
+           style="font-size:2.82222px;text-align:end;text-anchor:end">page 2 of 3</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text2531"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect2533);"
+       transform="translate(-3.8621167e-6,220.12449)"
+       x="-101.91374"
+       y="0"><tspan
+         x="6.3496094"
+         y="38.064721"><tspan
+           style="text-align:start;text-anchor:start">Note that the modelling framework started with the </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New'">mlr</tspan><tspan
+           style="text-align:start;text-anchor:start"> package and is being converted </tspan></tspan><tspan
+         x="6.3496094"
+         y="42.492127"><tspan
+           style="text-align:start;text-anchor:start">to the </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New'">tidymodels</tspan><tspan
+           style="text-align:start;text-anchor:start"> framework.  This was done as </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New'">mlr</tspan><tspan
+           style="text-align:start;text-anchor:start"> is no longer maintained, </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New'">mlr3</tspan><tspan
+           style="text-align:start;text-anchor:start"> is </tspan></tspan><tspan
+         x="6.3496094"
+         y="46.919533"><tspan
+           style="text-align:start;text-anchor:start">not yet released, and the </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New'">tidymodels</tspan><tspan
+           style="text-align:start;text-anchor:start"> systems  is very well documented. The main </tspan></tspan><tspan
+         x="6.3496094"
+         y="51.34694"><tspan
+           style="text-align:start;text-anchor:start">processing engine, </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New'">ranger</tspan><tspan
+           style="text-align:start;text-anchor:start"> (used to process random forest models), remains the same.</tspan></tspan></text>
+    <use
+       xlink:href="#Process"
+       style="fill:#aaccee;stroke:#000000;stroke-width:0.833333"
+       id="use6657-8"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.2,0,0,0.60000008,1.5875,127.79375)" />
+    <text
+       xml:space="preserve"
+       id="text7331-1"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect7333-1);"
+       transform="translate(-3.1801388,72.189044)"
+       x="12.967347"
+       y="0"><tspan
+         x="18.864102"
+         y="66.621259"><tspan
+           style="text-align:center;text-anchor:middle">Split data: 
+</tspan></tspan><tspan
+         x="16.318175"
+         y="71.030988"><tspan
+           style="text-align:center;text-anchor:middle">Test and Train</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text2964"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect2966);"
+       x="-28.215351"
+       y="0"
+       transform="translate(0.23128013,-0.47390422)"><tspan
+         x="50.800781"
+         y="62.821222"><tspan
+           style="shape-inside:url(#rect2966)">- Model raster resolution is set, and 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.348997"><tspan
+           style="shape-inside:url(#rect2966)">  with an option for multiple resolutions 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="69.876772"><tspan
+           style="shape-inside:url(#rect2966)">
+</tspan></tspan><tspan
+         x="50.800781"
+         y="73.40455"><tspan
+           style="shape-inside:url(#rect2966)">- Covariates are generated remote 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="76.932329"><tspan
+           style="shape-inside:url(#rect2966)">  sensing data.  Typically these include 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="80.460108"><tspan
+           style="shape-inside:url(#rect2966)">  derivatives from high resolution DTMs 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="83.987886"><tspan
+           style="shape-inside:url(#rect2966)">  (e.g. from lidar).  Additional options  
+</tspan></tspan><tspan
+         x="50.800781"
+         y="87.515665"><tspan
+           style="shape-inside:url(#rect2966)">  include: lidar forest canopy metrics, 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="91.043443"><tspan
+           style="shape-inside:url(#rect2966)">  and/or other satelite data.
+</tspan></tspan><tspan
+         x="50.800781"
+         y="94.571222"><tspan
+           style="shape-inside:url(#rect2966)">
+</tspan></tspan><tspan
+         x="50.800781"
+         y="98.099001"><tspan
+           style="shape-inside:url(#rect2966)">- Processing allows the stacking of 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="101.62678"><tspan
+           style="shape-inside:url(#rect2966)">  multiple resolutions of the covariates</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text2992"
+       style="line-height:1.25;font-family:sans-serif;font-size:3.52777778px;text-align:center;white-space:pre;shape-inside:url(#rect2994);" />
+    <text
+       xml:space="preserve"
+       id="text3014"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect3016);"
+       transform="translate(50.962794,20.645419)"><tspan
+         x="114.30078"
+         y="34.261148"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="37.803068"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="41.344988"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">multi_res()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="44.886907"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="48.428827"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="51.970747"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">create_covariates()
+</tspan></tspan><tspan
+         x="114.30078"
+         y="55.512666"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="59.054586"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="62.596506"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="66.138426"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="69.680345"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="73.222269"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">
+</tspan></tspan><tspan
+         x="114.30078"
+         y="76.764192"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';shape-inside:url(#rect7492-0)">cv_FineRes()</tspan></tspan></text>
+    <use
+       xlink:href="#MagneticDrum"
+       style="fill:#aaccee;stroke:#000000;stroke-width:0.499292;stroke-miterlimit:4;stroke-dasharray:none"
+       id="use3021"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(1.1142646,0,0,0.90000003,3.2666187,99.615624)" />
+    <text
+       xml:space="preserve"
+       id="text3027"
+       style="font-size:3.52778px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect3031);stroke-width:0.5;stroke-miterlimit:4;stroke-dasharray:none;"
+       transform="translate(-3.3059467,75.364435)"
+       x="8.1803846"
+       y="0"><tspan
+         x="18.16013"
+         y="41.220868"><tspan
+           style="text-align:center;text-anchor:middle;stroke-width:0.5;stroke-miterlimit:4;stroke-dasharray:none">Modelling
+</tspan></tspan><tspan
+         x="22.462196"
+         y="45.630593"><tspan
+           style="text-align:center;text-anchor:middle;stroke-width:0.5;stroke-miterlimit:4;stroke-dasharray:none">Data</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text3033"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect3035);"
+       x="-28.215351"
+       y="0"
+       transform="translate(0,47.162428)"><tspan
+         x="50.800781"
+         y="62.821222"><tspan
+           style="shape-inside:url(#rect3035)">- Rasters are queried using the </tspan><tspan
+           style="font-weight:bold">Field 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.348997"><tspan
+           style="font-weight:bold">  Data Points</tspan><tspan
+           style="shape-inside:url(#rect3035)">.  
+</tspan></tspan><tspan
+         x="50.800781"
+         y="69.876772"><tspan
+           style="shape-inside:url(#rect3035)">- Provides a single data set that 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="73.40455"><tspan
+           style="shape-inside:url(#rect3035)">  includes the empirical and remote 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="76.932329"><tspan
+           style="shape-inside:url(#rect3035)">  sensed covariate data </tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text4133"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect4135);"
+       x="-19.79137"
+       y="0"><tspan
+         x="165.09961"
+         y="110.46037"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';text-align:start;text-anchor:start">sample_covars()</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.52492px;line-height:1.25;font-family:sans-serif;opacity:0.3;fill:#000000;stroke-width:0.265846"
+       x="166.77939"
+       y="147.31238"
+       id="text8560"
+       transform="matrix(0.98076456,-0.19625253,0.19656364,0.98028001,0,0)"><tspan
+         sodipodi:role="line"
+         id="tspan8558"
+         x="166.77939"
+         y="147.31238"
+         style="font-weight:bold;fill:#000000;stroke-width:0.265846">PENDING</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text4165"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect4167);"
+       x="-34.031536"
+       y="0"><tspan
+         x="225.42578"
+         y="110.44622"><tspan
+           style="font-style:italic;font-size:2.82222px;text-align:start;text-anchor:start">Simple script ... currently using SP and Raster ... upgrade </tspan></tspan><tspan
+         x="225.42578"
+         y="113.974"><tspan
+           style="font-style:italic;font-size:2.82222px;text-align:start;text-anchor:start">terra or stars
+</tspan></tspan><tspan
+         x="225.42578"
+         y="117.50178"><tspan
+           style="font-style:italic;font-size:2.82222px;text-align:start;text-anchor:start">See: http://www.forestecosystems.ca/PEMv2/#sample-</tspan></tspan><tspan
+         x="225.42578"
+         y="121.02956"><tspan
+           style="font-style:italic;font-size:2.82222px;text-align:start;text-anchor:start">the-transects</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:3.52777px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle;stroke-width:0.264583"
+       x="247.64999"
+       y="114.3"
+       id="text4173"><tspan
+         sodipodi:role="line"
+         id="tspan4171"
+         x="247.64999"
+         y="114.3"
+         style="stroke-width:0.264583" /></text>
+    <text
+       xml:space="preserve"
+       id="text4499"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:start;white-space:pre;shape-inside:url(#rect4501);"
+       x="-17.817184"
+       y="0"><tspan
+         x="225.42578"
+         y="135.84661"><tspan
+           style="shape-inside:url(#rect4501)">25% is the default -- ... option to set seed and do this </tspan></tspan><tspan
+         x="225.42578"
+         y="139.37438"><tspan
+           style="shape-inside:url(#rect4501)">in the create models process... 
+</tspan></tspan><tspan
+         x="225.42578"
+         y="142.90215"><tspan
+           style="shape-inside:url(#rect4501)">keeping this sepearte will allow cor comparison of </tspan></tspan><tspan
+         x="225.42578"
+         y="146.42993"><tspan
+           style="shape-inside:url(#rect4501)">models</tspan></tspan></text>
+    <path
+       style="display:inline;fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.265, 0.53;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker4515)"
+       d="m 25.4,50.8 v 9.524999"
+       id="path4505"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+    <path
+       style="display:inline;fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker4593)"
+       d="M 25.4,79.375001 V 107.95"
+       id="path4589"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc" />
+    <path
+       style="display:inline;fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker4693)"
+       d="m 25.4,127 v 6.35"
+       id="path4689"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc" />
+    <path
+       style="display:inline;fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker4897)"
+       d="m 25.4,146.05 v 12.7"
+       id="path4791"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc" />
+    <text
+       xml:space="preserve"
+       id="text4933"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;text-align:center;white-space:pre;shape-inside:url(#rect4935);"
+       x="-19.79137"
+       y="0"
+       transform="translate(0,50.073157)"><tspan
+         x="165.09961"
+         y="110.46037"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';text-align:start;text-anchor:start">model_gen()
+</tspan></tspan><tspan
+         x="165.09961"
+         y="114.00229"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';text-align:start;text-anchor:start">inst/rmd/model_gen_tidy.Rmd
+</tspan></tspan><tspan
+         x="165.09961"
+         y="117.54421"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';text-align:start;text-anchor:start">
+</tspan></tspan><tspan
+         x="165.09961"
+         y="121.08614"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New';text-align:start;text-anchor:start">
+</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text4945"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect4947);"
+       transform="translate(0,126.70131)"><tspan
+         x="50.800781"
+         y="34.247003"><tspan
+           style="shape-inside:url(#rect7345)">- Cross-fold validation is defined 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="37.788923"><tspan
+           style="shape-inside:url(#rect7345)">- model engine is defined: </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New'">ranger</tspan><tspan
+           style="shape-inside:url(#rect7345)">
+</tspan></tspan><tspan
+         x="50.800781"
+         y="41.316698"><tspan
+           style="shape-inside:url(#rect7345)">- recipe is defined including: 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="44.858617"><tspan
+           style="shape-inside:url(#rect7345)">  - formula (e.g. </tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Courier New';-inkscape-font-specification:'Courier New'">SiteSeries ~ .</tspan><tspan
+           style="shape-inside:url(#rect7345)">)
+</tspan></tspan><tspan
+         x="50.800781"
+         y="48.386392"><tspan
+           style="shape-inside:url(#rect7345)">  - identify special columns such as:
+</tspan></tspan><tspan
+         x="50.800781"
+         y="51.914167"><tspan
+           style="shape-inside:url(#rect7345)">    - cLHS slices
+</tspan></tspan><tspan
+         x="50.800781"
+         y="55.441942"><tspan
+           style="shape-inside:url(#rect7345)">    - ID non-predictor data
+</tspan></tspan><tspan
+         x="50.800781"
+         y="58.969717"><tspan
+           style="shape-inside:url(#rect7345)">- workflow of above is defined 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="62.497492"><tspan
+           style="shape-inside:url(#rect7345)">- hyper-parameter tuning is defined 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="66.025266"><tspan
+           style="shape-inside:url(#rect7345)">- best tuning is selected 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="69.553041"><tspan
+           style="shape-inside:url(#rect7345)">- redefine model -- to include variable 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="73.08082"><tspan
+           style="shape-inside:url(#rect7345)">  importance and 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="76.608598"><tspan
+           style="shape-inside:url(#rect7345)">- run last model -- includes analysis 
+</tspan></tspan><tspan
+         x="50.800781"
+         y="80.136377"><tspan
+           style="shape-inside:url(#rect7345)">  using split data (testing and training)
+</tspan></tspan><tspan
+         x="50.800781"
+         y="83.664156"><tspan
+           style="shape-inside:url(#rect7345)">
+</tspan></tspan><tspan
+         x="50.800781"
+         y="87.191934"><tspan
+           style="shape-inside:url(#rect7345)">- Exports:
+</tspan></tspan><tspan
+         x="50.800781"
+         y="90.719713"><tspan
+           style="shape-inside:url(#rect7345)">  a) Report
+</tspan></tspan><tspan
+         x="50.800781"
+         y="94.247492"><tspan
+           style="shape-inside:url(#rect7345)">  b) Model Object - used for predicting</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       id="text5909"
+       style="font-size:2.82222px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect5911);"
+       transform="translate(0,126.70131)"><tspan
+         x="114.30078"
+         y="34.247003"><tspan
+           style="shape-inside:url(#rect5911)">05a_PEM_Build_Model.Rmd</tspan></tspan></text>
+    <path
+       style="display:inline;fill:#666666;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.265, 0.53;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker6065)"
+       d="m 25.4,228.6 v 9.525"
+       id="path6061"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0" />
+  </g>
+</svg>

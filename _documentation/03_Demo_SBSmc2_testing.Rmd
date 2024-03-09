@@ -1,0 +1,443 @@
+---
+title: "January Update 2021"
+date: "07/01/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=FALSE,
+                      warning = FALSE, message = FALSE,
+                      results = 'show',
+                      eval = TRUE)
+```
+
+
+## Topic for discussion: 
+
+1) Modeling methods/process
+2) Which accuracy measure to use? standard metrics, aspatial metrics 
+3) Overall accuracy measures 
+4) Fuzzy/alternate call metrics
+5) Imbalanced datasets
+6) MapUnit (class) accuracy: 
+  
+
+### 1) Modelling methods/process
+
+Over the last month, we have been working through the model development (converting modeling to tidymodel format/package) and ensuring modeling follows both best practices and accounts for sampling structure (i.e paired transects). 
+
+Thanks to input and advice from Brandon we are using a 10 x 5 cross validation to assess fit after an intial training and testing split. This process is bootstrapped for each "slice" of input data derived from the sliced latin hyper cube sampling. Each slice represents similar hypercube "space" and contains approximately 5 sites.For example stage 1 SBSmc2 at Deception includes 5 slices each with 5 sites = 25 sites or 50 triangles in total. 
+This provides 1) confidence intervals around accuracy measures (based on 5 slices), 2) minimises "data leakage" between the test and training sets, 3) enables sites to be "blocked" to training and testing sets to prevent the model from training and testing on data from the same site (ie pair of transects). Cross validation is stratified by mapunit and grouped by site id. Test results are reported below. 
+
+For rapid comparisons an initial tuning of hyperparameters was completed with these parameters applied to all model comparisons shown below. For final comparisons each model will be indivdually tuned.
+
+In addition to boostrapping by slices, We also tested bootstrapping via sites, however this produced a very wide range of confidence intervals due to diverse sites (ie high proportion on non-forest sites).
+
+Modelling code has been developed for the following packages (mlr, tidymodels, caret). To date tidymodels provides best function and documentation to support multiple machine learning models and results collection. Very similar results were obtained when testing the same model in two packages (tidymodels, mlr).
+
+We used a small subset of data (SBSmc2) from Deception stage 1 to investigate a number of preliminary questions which arose from results to date. 
+
+
+
+### 2) Which accuracy measure to use?
+
+### **Standard metrics**:
+
+- A number of metrics can be used to assess machine learning model accuracy: **accuracy (spatial accuracy), precision, kappa, recall, sensitivity, specificity**.
+
+- **Accuracy** is a common metric, however, it is sensitive to imbalanced data, as it overpredicts common class at the expense of minor classes.
+
+- We explored the literature to assess other metrics which we could be used to assess success across classes (ie **f-measure, j index, mcc**). See additional notes for definitions. 
+
+### **Aspatial metrics**: 
+
+We explored aspatial assessment metrics, which are based on the proportion of mapunit which exists rather than exact spatial match. This is equivalent to existing AA measures. 
+
+- **Aspatial_acc** is the accuracy per slice (i.e total accuracy over the site). 
+- **Aspatial_meanacc** is the accuracy based on the average of map units (ie: 100% correct = 0% correct).
+
+
+
+### 3) Overall Accuracy Metrics: 
+
+The following figures provides an example of a single model run (5m all training points) with the three types of overall accuracy. Results from the cross validation and final test are included for comparison.
+
+**Aspatial**: 
+- Aspat_p_acc (aspatial prime accuracy per slice)
+- aspat_p_meanacc (aspatial prime average accuracy per mapunit)
+
+**MultiClass**: 
+- f_means
+- mcc(matthews correlation coefficient)
+
+**Spatial**:
+- acc_spatial (accuracy)
+- kap(kappa)
+- precision
+- recall 
+- sens(sensitivity)
+- spec(specificity)
+
+
+
+![Fig.1: Overall accuracy metrics options (test and cv) for a single model output.](./_documentation/_images/Accuracy_measures.jpg)
+
+### **Take aways**: 
+
+- Wide range in accuracy measures depending on method chosen.
+- Number of metrics similar (f_means, mcc, kappa, sensitivity)
+- According to aspatial accuracy measures we are succeeding at reaching > 0.65 accuracy. 
+- Similar results for test and CV can be used to assess overfitting (or lack of). 
+
+
+**Proposed Metrics **:
+
+- aspatial average (aspat_p_acc) - equivalent to current AA measure
+- aspatial mapunit accuracy (aspat_p_meanacc) - map unit specific measure of AA
+- spatial accuracy (acc_spatial) - accuracy equivalent
+- mcc - measure of multi-class accuracy
+
+
+
+### 4) **Alt/Fuzzy calls**: 
+
+In reality we have multiple forms of fuzziness. These represent fuzzyiness on the ground, ie non-central concepts calls, or conceptual fuzziness between units. We tested a number of options to incorporate this into the accuracy measures:   
+
+
+**Alternate calls** - (fuzziness in reality) can be included in accuracy measure similar to AA method in which the secondary call is included if it matches the predicted call.
+
+**Fuzzy** (conception) values assign partial correct values for mapunit calls that are similar (on the edatopic position) to the correct calls. In this case, scores could be awarded for on a sliding scale from 1 (Correct) to 0 (no where close) with partial credit assigned to closely related mapunits. Note this requires a matrix which specifies the similarity between all combinations of possible calls. This was also calculated for primary and alternate calls (spat_fpa). 
+
+![Fig.2: Edatopic grid and associated values](./_documentation/_images/sbsmc2_edatopic_grid.jpg){width=75%}
+
+![](./_documentation/_images/fuzz_matriz.jpg){width=75%}
+
+An example of the proposed metrics including fuzzy and prime/alt calls includes; 
+
+-aspat_p_acc (overall apatial accuracy)
+-aspat_p_meanacc (average mapunit aspatial accuracy)
+-mcc
+-spat_p_acc (accuracy)
+-spat_pa_acc (prime / alt call accuracy)
+-spat_fp_tot (fuzzy prime)
+-spat_fpa_tot (fuzzy prime/alt accuracy)
+
+
+
+
+![Fig.3: Proposed accuracy measures).](./_documentation/_images/prop_accuracy_measures.jpg)
+
+### 5) Imbalanced datasets
+
+As accuracy is impacted by imbalance of training data we also assessed training point balance on model accuracy. We tested a variety of balancing methods; raw training pts, raw pure training points, smoting (upsample uncommon sites at various ratios), downsample common sites. 
+
+```{r read in data summaries, echo = FALSE, fig.cap = "Fig.4:Test accuracy with balancing options (median + quartiles)", fig.width = 15, fig.height = 10}
+
+library(foreach)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+
+AOI <- "Deception"
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models", "forest", "fore_mu_bgc")
+
+model_data_bgc <- list.files(out_dir, recursive = TRUE, pattern = "model_results.RData", full.names = TRUE)
+
+#model_data_bgc <- model_data_bgc[1:6]
+
+#59-62 are training pt samples 
+
+model_sum <- foreach(j = model_data_bgc, .combine = rbind) %do% {
+    #print(j)
+    #j = model_data_bgc[13]
+    file = load(j)
+    acc %>%
+      mutate(folder = paste(j))
+} 
+
+# shortcut to read in data
+#write.csv(model_sum, "combined_model_results.csv", row.names = T)
+#model_sum <- read.csv("combined_model_results.csv")
+
+
+bsRes <- model_sum %>%
+    mutate(across(where(is.numeric), ~ replace_na(.,0)))
+
+
+bsRes_all <- bsRes %>% 
+  group_by(slice, acc_type, folder) %>%
+  mutate(aspat_overall = aspatial_acc,
+         aspat_mean = aspatial_meanacc,
+         spat_prime = (sum(spat_p)/trans.sum) *100,
+         spat_prime_alt = (sum(spat_pa)/trans.sum) *100,
+         spat_prime_fuzzy = (sum(spat_fp)/trans.sum) *100,
+         spat_prime_alt_fuzzy = (sum(spat_fpa)/trans.sum) *100) %>%
+  dplyr::select(c(slice, acc_type, aspat_overall, aspat_mean, spat_prime,               spat_prime_alt , spat_prime_fuzzy, spat_prime_alt_fuzzy, mcc)) %>%
+   pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  distinct() %>%
+  ungroup() %>%
+  mutate(case = gsub("Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/", "", folder)) %>%
+  mutate(case = gsub("/SBSmc2/model_results.RData","", case))%>%
+  dplyr::filter(acc_type == "test_estimate") %>%
+  dplyr::select(-c(folder, acc_type)) %>%
+  filter(case %in% c("53", "54","55", "56","57","58")) %>%
+  mutate(name = case_when(
+    case == "53" ~ "53:raw all calls",
+    case == "54" ~ "54:raw pure calls",
+    case == "55" ~ "55:smote pure calls",
+    case == "56" ~ "56:smote (0.5) pure calls",
+    case == "57" ~ "57:smote (or=1) and downsample (ur=25) pure",
+    case == "58" ~ "58:downsample (u/r = 25) pure  calls"))
+
+p2 <- ggplot(aes(y = value, x = accuracy_type, fill = name), data = bsRes_all) + 
+   geom_boxplot() +
+   scale_fill_brewer(type = "qual") +
+   #facet_wrap(~acc_type)+
+   #geom_jitter(position=position_jitter(width=.1), colour = "grey", alpha = 0.8) + 
+   geom_hline(yintercept = 65,linetype ="dashed", color = "red") + 
+   #ggtitle("Test accuracy with balancing options (median + quartiles)") + 
+   theme(axis.text.x = element_text(angle = 90)) +
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100) 
+
+p2
+
+# 
+# bsRes_ave <- bsRes_all %>%
+#   group_by(accuracy_type, case, name) %>%
+#   summarise(mean_val = mean(value)) %>%
+#   distinct()
+#   
+# 
+# bsRes_sub <- bsRes_all %>%
+#   filter(str_detect(accuracy_type, "_alt|fuzzy", negate = TRUE))
+# 
+# 
+# p2 <- ggplot(aes(y = value, x = case), data = bsRes_sub) + 
+#    geom_boxplot() +
+#    facet_wrap(~accuracy_type)+
+#    geom_hline(yintercept = 65,linetype ="dashed", color = "red") + 
+#    ggtitle("Test accuracy with balancing options (median + quartiles)") + 
+#    theme(axis.text.x = element_text(angle = 90)) +
+#    xlab("Mapunit") + ylab("Accuracy") + 
+#    ylim(-0.05, 100) 
+# 
+# p2
+
+```
+
+**Takeaways**:
+
+- balancing (smote/downsample) impacts the accuracy measures particularly aspatial mapunit measures.
+- acccounting for fuzziness (prime or prime/alt calls) greatly increases the overall accuracy measures. 
+- Balancing requires more careful consideration given the changes in accuracy. 
+- surprisingly mcc not very different with balancing. 
+
+
+### 6) Accuracy per MapUnit
+
+In addition to overall accuracy, we considered how accuracy measures varied in assessing accuracy per mapunit. An example of model outputs is below. 
+
+
+![Fig.5: Example of map unit accuracies for model 53 (raw all calls)](./_documentation/_images/map_unit_accuracy_53.jpg){width=75%}
+
+
+![Fig.6: Example of map unit accuracies for model 56 (smoted (0.5) pure call](./_documentation/_images/map_unit_accuracy_ex.jpg){width=75%}
+
+Comparing the raw model of pure calls (54) to the partial smoted model (56). When looking at the confusion matrix smoting model makes high impact on uncommon sites.  
+
+```{r, echo=FALSE, out.width="49%",out.height="20%",fig.cap="confusion matrix (raw - left, smoted - right",fig.show='hold',fig.align='center'}
+knitr::include_graphics(c("./_documentation/_images/conf_54.jpg","./_documentation/_images/conf_56.jpg"))
+``` 
+
+
+### Take aways: 
+
+- aspatial performs much better than spatial.
+- sites with very few training pt (SBSmc2_02/ 03/ 07) had little difference with balancing 
+- sites with moderate amount of data (SBSmc2_09) showed improved metrics in confusion table. 
+- uncommon mapunits require more data
+
+- pure calls remove before training (stage 1 entire training data)
+
+
+### General comments/notes
+Why does aspatial score higher than spatial?
+
+Discuss with Bob as to why?
+
+1) Field calls variable among the data collection.
+2) Pattern becomes closer to the truth as classes are rolled up.  
+3) Importance of landscape scale (multi-scale) and some spatial displacement of classes on the ground. 
+4) Issue of fuzzy boundary (again influence of individual samplers)
+
+Solutions/Possible options: 
+ - View as a population level sample rather than explicit 
+ - Potential to use individual crew as a measurement error? or account for difference in prime and alt calls. 
+ - Use a fuzzy matrix and or alt calls. 
+
+
+```{r fuzzy metrics, echo = FALSE}
+
+# mapunit_tot <- bsRes %>% 
+#   dplyr::filter(acc_type == "test_estimate") %>%
+#   group_by(slice, folder, target, acc_type) %>%
+#   dplyr::select(trans.tot, pred.tot, trans.sum, aspat_p, unit_pos, spat_p, spat_fp, spat_pa, spat_fpa, aspatial_acc , aspatial_meanacc)%>%
+#   rowwise() %>%
+#   mutate(spat_p_tot = (spat_p/trans.tot) *100,
+#          spat_pa_tot = (spat_pa/trans.tot) *100,
+#          spat_fp_tot = (spat_fp/trans.tot)*100,
+#          spat_fpa_tot = (spat_fpa/trans.tot)*100,
+#          aspat_p = unit_pos *100) %>%
+#   dplyr::select(slice, target, spat_p_tot,
+#                 spat_pa_tot, spat_fp_tot, spat_fpa_tot, aspat_p) %>%
+#   pivot_longer(., cols = where(is.numeric), names_to = "type") %>%
+#   distinct() %>%
+#   ungroup() %>%
+#   mutate(case = gsub("Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/", "", folder)) %>%
+#   mutate(case = gsub("/SBSmc2/model_results.RData","", case)) %>%
+#   dplyr::filter(acc_type == "test_estimate") %>%
+#   dplyr::select(-c(folder, acc_type)) %>%
+#   filter(case %in% c("54","56")) %>%
+#   mutate(name = case_when(
+#     #case == "53" ~ "53:raw all calls",
+#     case == "54" ~ "54:raw pure calls",
+#     #case == "55" ~ "55:smote pure calls",
+#     case == "56" ~ "56:smote (0.5) pure calls")#,
+#     #case == "57" ~ "57:smote (or=1) and downsample (ur=25) pure",
+#     #case == "58" ~ "58:downsample (u/r = 25) pure  calls"))
+# ) %>%
+#   filter(type %in% c("spat_p_tot", "aspat_p"))
+# 
+# 
+#          
+# p2 <- ggplot(aes(y = value, x = target, fill = case), data = mapunit_tot) + 
+#    geom_boxplot() + 
+#    facet_wrap(~type) + 
+#    geom_hline(yintercept = 65,linetype ="dashed", color = "red") + 
+#    ggtitle("Test accuracy per mapunit") + 
+#    theme(axis.text.x = element_text(angle = 90)) +
+#    xlab("Mapunit") + ylab("Accuracy") + 
+#    ylim(-0.05, 100)
+# 
+# p2
+
+
+# p2 <- ggplot(aes(y = value, x = target, fill = case), data = mapunit_tot) + 
+#    geom_point() + 
+#    facet_wrap(~type) + 
+#    geom_hline(yintercept = 65,linetype ="dashed", color = "red") + 
+#    ggtitle("Test accuracy per mapunit") + 
+#    theme(axis.text.x = element_text(angle = 90)) +
+#    xlab("Mapunit") + ylab("Accuracy") + 
+#    ylim(-0.05, 100)
+# 
+# p2
+```
+
+
+
+```{r overall accuracy per training pt set, echo=FALSE, eval = FALSE}
+
+
+### 2) Training pt set comparison ?
+# 
+# Impact of training point selection method 
+# - 54 - s1_transect_st_5m_pts
+# - 59 - s1_transect_st_30m_pts
+# - 60 - s1_transect_st_50m_pts
+# - 61 - s1_transect_5m_pts
+# - 62 - s1_transect_30m_pts
+# - 63 - s1_transect_50m_pts
+
+
+# 
+# bsRes_all <- bsRes %>% 
+#   group_by(slice, acc_type, folder) %>%
+#   mutate(aspat_overall = aspatial_acc,
+#          aspat_mean = aspatial_meanacc,
+#          spat_prime = (sum(spat_p)/trans.sum) *100,
+#          spat_prime_alt = (sum(spat_pa)/trans.sum) *100,
+#          spat_prime_fuzzy = (sum(spat_fp)/trans.sum) *100,
+#          spat_prime_alt_fuzzy = (sum(spat_fpa)/trans.sum) *100) %>%
+#   dplyr::select(c(slice, acc_type, aspat_overall, aspat_mean, spat_prime,               spat_prime_alt , spat_prime_fuzzy, spat_prime_alt_fuzzy, mcc)) %>%
+#    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+#   distinct() %>%
+#   ungroup() %>%
+#   mutate(case = gsub("Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/", "", folder)) %>%
+#   mutate(case = gsub("/SBSmc2/model_results.RData","", case))%>%
+#   dplyr::filter(acc_type == "test_estimate") %>%
+#   dplyr::select(-c(folder, acc_type)) %>%
+#   filter(case %in% c("54","59", "60","61", "62","63")) %>%
+#   filter(accuracy_type %in% c("spat_prime", "mcc", "aspat_mean", "aspat_overall"))
+# 
+# # %>%
+# #   mutate(name = case_when(
+# #     case == "53" ~ "53:raw all calls",
+# #     case == "54" ~ "54:raw pure calls",
+# #     case == "55" ~ "55:smote pure calls",
+# #     case == "56" ~ "56:smote (0.5) pure calls",
+# #     case == "57" ~ "57:smote (or=1) and downsample (ur=25) pure",
+# #     case == "58" ~ "58:downsample (u/r = 25) pure  calls"))
+# 
+# 
+# p2 <- ggplot(aes(y = value, x = accuracy_type, fill = case), data = bsRes_all) + 
+#    geom_boxplot() +
+#    scale_fill_brewer(type = "qual") +
+#    #facet_wrap(~acc_type)+
+#    #geom_jitter(position=position_jitter(width=.1), colour = "grey", alpha = 0.8) + 
+#    geom_hline(yintercept = 65,linetype ="dashed", color = "red") + 
+#    ggtitle("Test accuracy with balancing options (median + quartiles)") + 
+#    theme(axis.text.x = element_text(angle = 90)) +
+#    xlab("Mapunit") + ylab("Accuracy") + 
+#    ylim(-0.05, 100) 
+# 
+# p2
+
+```
+
+
+```{r mapunit by training pt, echo = FALSE}
+
+# mapunit_tot <- bsRes %>% 
+#   dplyr::filter(acc_type == "test_estimate") %>%
+#   group_by(slice, folder, target, acc_type) %>%
+#   dplyr::select(trans.tot, pred.tot, trans.sum, aspat_p, unit_pos, spat_p, spat_fp, spat_pa, spat_fpa, aspatial_acc , aspatial_meanacc)%>%
+#   rowwise() %>%
+#   mutate(spat_p_tot = (spat_p/trans.tot) *100,
+#          spat_pa_tot = (spat_pa/trans.tot) *100,
+#          spat_fp_tot = (spat_fp/trans.tot)*100,
+#          spat_fpa_tot = (spat_fpa/trans.tot)*100,
+#          aspat_p = unit_pos *100) %>%
+#   dplyr::select(slice, target, spat_p_tot,
+#                 spat_pa_tot, spat_fp_tot, spat_fpa_tot, aspat_p) %>%
+#   pivot_longer(., cols = where(is.numeric), names_to = "type") %>%
+#   distinct() %>%
+#   ungroup() %>%
+#   mutate(case = gsub("Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/", "", folder)) %>%
+#   mutate(case = gsub("/SBSmc2/model_results.RData","", case)) %>%
+#   dplyr::filter(acc_type == "test_estimate") %>%
+#   dplyr::select(-c(folder, acc_type)) %>%
+#   filter(case %in% c("54","59", "60","61", "62","63")) %>%
+#   #filter(accuracy_type %in% c("spat_prime", "mcc", "aspat_mean", "aspat_overall"))
+#   filter(type %in% c("spat_p_tot", "aspat_p"))
+# 
+# 
+#          
+# p3 <- ggplot(aes(y = value, x = target, fill = case), data = mapunit_tot) + 
+#    geom_boxplot() + 
+#    facet_wrap(~type) + 
+#    geom_hline(yintercept = 65,linetype ="dashed", color = "red") + 
+#    ggtitle("Test accuracy per mapunit") + 
+#    theme(axis.text.x = element_text(angle = 90)) +
+#    xlab("Mapunit") + ylab("Accuracy") + 
+#    ylim(-0.05, 100)
+# 
+# p3
+
+
+```
+
+
+

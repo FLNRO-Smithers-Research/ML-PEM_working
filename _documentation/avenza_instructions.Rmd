@@ -1,0 +1,161 @@
+---
+title: "Preparation for field collection with Avenza"
+author: "G Perkins"
+date: "04/07/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+To prepare for field work you will need to have prepared field maps and schemas. See section XXX for details. 
+
+
+## Office Preparation
+
+1)  Download [Avenza](https://itunes.apple.com/ca/app/avenza-maps/id388424049?mt=8)
+	Note: A paid subscription is required to run the schema. Detailed help can be found on the Avenza support [webpage](https://support.avenzamaps.com/hc/en-us/categories/360002220131-iOS)
+
+
+2) Download geo-referenced maps: 
+
+- Open the Avenza app and set up the maps. 
+  - Click the **Edit** button (top right)
+  - Click the **` + folder`** and add a "collection". 
+  Note: A collection allows you to link and switch between maps in the same folder based on geolocation. This feature is not possible in folders.
+  
+  - Create a new folder per variant (ie ESSFmc, IDFdm). This will enable the schema for each variant to be correctly linked. 
+  - For each variant create a folder for transect maps. 
+  - It is useful to have an overall map or multiple overall maps also saved within the same collection to enable orientation and navigating to sites. 
+  
+ - Download the prepared georeference maps. There are a variety of options ; DropBox, Sync.ca , other i-cloud options. DropBox provides some advantage as it allows entrie folders to be downloaded rather than individual maps. 
+ 
+ - To add maps. Open the folder you want to populate with maps
+ - click on the **+** at the top right 
+ - Select **From DropBox** on the pop-up list 
+ - navigate your dropbox folder and select the folder with the appropriate maps, then select All to add all maps within the folder, them import. 
+ 
+ - Repeat to add more maps for the required variants 
+ 
+
+3) Create or link maps to a schema 
+
+Schemas are used in Avenza map to ensure data collecton is standardize where possible. 
+There are two options to create a schema 
+- 1) Download a prepared KML file (PREFERRED)
+- 2) Create a schema within Avenza. 
+
+- Option 1) Create a KML file. 
+  - Create a kml file using the specifics described below. This can be done in a text editor (ie Sublime Text). A template file for Deception can be found here on the github shared account: "BEC_DevExchange_Work\Deception_AOI\_MapUnitLegend\Decpetion_schema". **Note: Matt Coghill also developed templates for Boundary Study Site. 
+
+  - Once created in a text editor (ie Sublime Text), upload to a file sharing platform (dropbox). 
+  - In the avenza app, select layers tab (bottom bar). 
+  - Click the **+** button to bring up a import pop-up menu. 
+  - Click 'link to maps' and select the folder / collection that contains the site maps, click **APPLY** on the top right. 
+  - Under the advanced settings select Import Schema, then select the platform to download the created kml (ie: dropbox). 
+  - Choose the file and hit 'import'. 
+  - Once downloaded you need to ensuer the schema is the 'active' layer. 
+  - Click on a map. Click the bottom right corner with a pin and three horizonal lines. This will show which schema are connected to the map. If there are more than one file showing ensure to unlink the schemas you dont want (NOTE : do no delete the schema here.... this will delete the data!!). 
+
+  - Click on the i icon on the schema you want to link then click "Set As Active Layer". 
+  - Now navigate back to map and start collecting data!
+
+- Option 2); Create schema from within Avenza
+
+- Open a map from the collection you will be sampling (ie B2020_essf_transects) 
+- Click on the pin icon on the bottom left corner. You will see a "add placemark" pop-up. 
+
+- A number of fields are included in all avenza schema's(photo, title, description, details, time). To add new attribute fields: 
+    - scroll to the bottom of the label, under the attributes section click the '**edit** button. 
+    - rename the layer with the variant of interest (ie essfmh_schema)
+    - ensure the layer is not locked and an "active" appears. 
+    - scroll to the bottom and click on (+ add a new attribute). You can now add the relevant information required, the data type, and populate any pre-set responses. Note: You can always add more options while in the field. 
+
+1) fid	- Auto-generated
+2) timestamp	- Auto-generated
+
+Add the following attributes: You can add two numbers before each name to ensure the fields show up in a set order; ie. 01_transect_id, 02_observer..etc
+- 01_transect_id	- character	Id transect (i.e., SBSwk1_12_cLHS or SBS_wk1_9_NE)	
+- 02_observer	- initials
+- 03_pt_type	- this is a pick-list or the following: 	
+    POC – Point of commencement
+    POT – Point of termination (resurvey of POC)
+    TP1 – 1st triangle Turn Point 1
+    TP2 – 2nd triangle Turn Point 2
+    LOS – Line-of-Sight point links to a paired back-sight (
+    BS – Back-sight point 
+  
+- 04_mapunit1 -  primary site series/map unit 	
+
+For published classifications, for forested site series, see: 
+https://catalogue.data.gov.bc.ca/dataset/bec-site-series-attribute-catalogue 
+For draft classifications, contact the Regional Ecologist.
+For non-forested sites: 
+https://www.for.gov.bc.ca/hfd/pubs/Docs/Tr/Tr068.pdf
+
+A short list of common non-forested site designations are included in the 04_mapunit1. These include: 
+- swamps (Ws) and fens (Wf), marshes (Wm), shallow water (Ww), Rock outcrops (Ro) and Talus (Rt)
+
+A full description of non-vegetated codes can be found here (use the above references for forested and non-forested sites): https://www.for.gov.bc.ca/hfd/library/documents/bib107006_2002.pdf
+A subset of these are included in the schema: 
+  -	LA = Lake
+  -	RI = River/Stream
+  -	ES = Exposed Soil
+  -	LL = Landing
+  -	RZ = Road Surface
+  - GP = Gravel Pit
+  - ST = SkidTrail
+
+
+- 05_transition. This is a pick list; 
+  8 - Two distinct areas along the transect : > 50% is intermediate between SS1 and SS2, and remainder is SS3
+  7 - Two distinct areas along the transect : primary call represents > 50% of area, and remainder is intermediate between SS2 and SS3.
+  6 – Two or more distinct site series; primary is 40-70%
+  5 – Two or more distinct site series; primary is > 70%
+  4 – Spatial graduation between segments
+  3 – Transitional between map unit concepts
+  2 - Grading slowly towards 2nd map unit or <10% inclusion 
+  1 – homogeneous with > 98% of transect classified as a single site series 
+
+- 06_mapunit2:	
+- 07_struct_stage
+
+alpha/numeric code	Coded description of structural stage. Note: Structural stage should be applied to the dominant site series. If one site series/mapunit is not dominant then apply the struct_stage to the primary call (mapunit1). Stand structure substages and additional modifiers are not required, except as below (struc_stage_mod).
+	Codes described in section 26 https://www.for.gov.bc.ca/hfd/pubs/Docs/Lmh/Lmh25/Lmh25_ed2_(2010).pdf 
+
+- 08_struc_stage_mod
+C = coniferous (> 75% of total tree cover is coniferous) 
+B = broadleaf (> 75% of total tree cover is broadleaf) 
+M = mixed (neither coniferous or broadleaf account for > 75% of total tree cover)
+disturbance 	character code	Code to describe disturbance type (if applicable)	https://www.for.gov.bc.ca/hfd/pubs/Docs/Lmh/Lmh25/Lmh25_ed2_(2010).pdf
+See table 9.10. p230.
+
+- 09_comments: for general comments regarding the site. 
+
+
+
+4) Once the attributes of the schema are complete ensure the schema is linked to the appropriate map folder. For example Essf_schema is linked to a essf_transect folder. Note a schema can be linked to multiple folders. 
+
+The schema layer also needed to be the "active" layer - see notes above on how to ensure this is setup correctly.
+
+
+
+
+
+
+5) **Exporting and importing schemas**. A schema can be exported as a .shp file or kml file. Files can be exported to dropbox or other file sharing platforms (sync.ca). Shapefiles are exported as .zip files. Navigate to the layers file, select the layer of interest then select the upload button (top right, between + and edit). Note if you want to see the detailed time-stamp information you will need to export as a .gpx file.
+
+To import a layer click on the **+** button at the top right. WARNING: any imported layers must be linked to a map for the schema to appear and the data to be collected. Import the layer or schema using sync.ca. 
+Once the layer is imported ensure it is linked to any map folder before going into the field. 
+
+
+
+
+
+
+
+
+
+

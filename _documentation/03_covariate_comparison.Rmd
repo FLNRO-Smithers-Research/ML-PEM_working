@@ -1,0 +1,134 @@
+---
+title: "03_Covariate_comparisons"
+author: "G. Perkins and Matt Coghill" 
+date: "11/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+The selection of best covariates in a machine learning model is likely impacted by the model type ie: NBec non-forest, all forested areas or specific to a BGC and potentially scale of variables. 
+
+Due to the nature of random forest trees, depending on the **mtry** value (number of co-variate with each tree), highly correlated variables are less problematic that in other statistical analysis. 
+
+
+## Sets of covariate data. 
+After initial discussions we have several sets of covariates to investigate. 
+
+1) Digital elevation model derivatives (terrain variables). 
+2) Remote sensed or satellite imagery data (i.e. sentinel). 
+3) Distance to measures 
+
+
+### DEM derived covariates
+
+The most common covariates to incorporate into machine learning models are derived from Digital Elevation data and models. We used LiDAR as the primary source to test these covaraites due to the high accurcary of Lidar data. 
+Initial testing conducted by Heather Richardson highlighted 8 top covariates. 
+
+- dem (filled sinks)
+- TWI 
+- TPI
+- MRVBF
+- DTM - digital terain model
+- TRI - topographic reflief index
+- Openess negative 
+- Openess positive 
+- p50, p75, p90 (height of vegation at 50, 75 and 90 % proportions).
+- slope
+
+
+Many of the derived DEM variables are generated within [Saga](https://sourceforge.net/projects/saga-gis/), an open source program which is optimized for parrallel processing. An external review on the viability of these layers was completed by eclipse geomatics in Feb 2020 with findings documented [here](https://github.com/bcgov-c/BEC_DevExchange_Work/blob/master/_documentation/Derivatives%20literature%20review%20and%20testing.xlsx). Some details are also provided in the appendices
+
+
+Covariates were created for each of these variables at 2.5, 5, 10, 25 meter resolution. 
+
+
+
+## Covariate resolution
+
+To assess the influence of scale on covariate selection we tested two methods. 1) Including multi scale derived covariates in the same models 2) Deriving multi-scale based on wavelet transform function 
+
+
+
+
+
+
+
+
+
+
+
+## Generate the DEM covariates: 
+
+This function generates the following covariates: 
+
+1. Fill Sinks XXL (Wang & Liu): For filling sinks in the DEM and only returning a DEM : http://www.saga-gis.org/saga_tool_doc/2.2.6/ta_preprocessor_2.html
+
+2. Slope, Aspect, Curvature: returns Slope, Aspect, General Curvature, and Total Curvature rasters
+
+3. Flow Accumulation (Recursive): Creates the "total catchment area" (TCA) layer which is a flow accumulation layer used in many other inputs. There are three methods to test this method 1 and 2 pick up local accumulations, while method 3 (and 4 as scripted) pick up larger catchment scale. Flow length is also generated for each of the methods of tca used.  http://www.saga-gis.org/saga_tool_doc/7.1.1/ta_hydrology_19.html
+
+D8[0]: flow goes between cell centres across an elevation gradient to where the steepest neighboring cell is detected. The flow of water is to the neighboring cell with the lowest elevation (i.e. the steepest gradient). The direction of flow however is restricted to multiples of 45º which introduces a lot of flow constraints and thus is not always favourable.
+D[2] Infinity: modified and more accurate method than D8, yet can still only allow flow to be divided to the two most favourable cells. In more technical words, “The method is based on representing flow direction as a single angle taken as the steepest downwards slope on the eight triangular facets centered at each grid point. The flow is then proportioned between two down-slope cells according to how close this flow direction is to the direct angle to the down-slope cell (Tarboton, 1997).” (Cimmery,2010)
+MFD [3]: this method computes the flow distribution with divergence. This means that instead of a total flow from one cell to the other based on gradient steepness, flow is distributed based on slope-weight basis and thus fractions of the flow are passed to neighboring cells differentially. This yields a more accurate representation of flow in variable terrain.
+
+
+4. Topographic wetness index (TWI): Creates the TWI for the study area. I found these to be the best methods based on exhaustive testing of many other methods. Rather than using the specific catchment area, TCA is used and converted all at once within this tool thus it is more efficient. My methods are based on those found here: https://gracilis.carleton.ca/CUOSGwiki/index.php/Enhanced_Wetness_Modelling_in_SAGA_GIS 
+
+5. Channel Network: This creates a channel network grid using the filled DEM and the TCA layer as an initiation grid. I found that using the initiaion value of 1,000,000 worked to create channels consistently at all scales, thus I propose using that here as well. scale_param is used here to define how long a stream needs to be in pixels before it is considered a stream. Source: https://sourceforge.net/projects/saga-gis/files/SAGA%20-%20Documentation/SAGA%20Documents/SagaManual.pdf/download 
+
+6. Overland Flow Distance to Channel Network: This tool draws the overland flow distance to the channel network created in step 5. In order to create a raster that is used to the borders of the grid, the "boundary" option had to be set to "true" This may not give a realistic representation of this variable at a given study area, but without this it constricts the final grid.http://www.saga-gis.org/saga_tool_doc/2.3.0/ta_channels_4.html)
+
+Tested both with boundry = TRUE and FALSE. The false option produces some missing areas, although may be a better representation of what is on the ground as compared to false, which forces the boundry and influences values on the edges. 
+
+
+7. Multiresolution Index of Valley Bottom Flatness (MRVBF): Looks at valley bottom flatness and ridge top flatness and uses the mrvbf_param to define the "initial threshold for slope" parameter. This was tuned to allocate a value to each pixal (rather than concentrate on deposition). Tested catergorical but very blocky so avoiding this. Generated with turned variable for upslope and downslope. 
+
+
+8. Terrain Ruggedness Index (TRI): Looks at ruggedness at a specified distance away from a focal cell.
+9. Convergence index: This tool is unchanged from the parameters defined by Lucas and Nicholas (uses 3x3 gradient to determind convergence)
+10. Topographic Openness: Calculates openness across a landscape at multiple scales. The advantage to the multi-scale approach is that it calculates the values at the edges of the map, whereas the line-tracing method does not. Multi-scale keeps things more consistent I would wager. This outputs both negative and positive openness.
+11. Diurnal Anisotropic Heat: The settings are unchanged from the default.
+12. Topographic Position Index (TPI): This calculates the position of a cell relative to neighboring cells in a defined vicinity. This value could easily change depending on the scale of interest. When running this tool, it pastes the default search parameters; however, it actually runs the ones defined by the tpi_param code. This is a bug from SAGA, but has no effect on the outcome of the TPI, it outputs it properly.
+13. Potential Incoming Solar Radiation: This calculates direct and diffuse insolation from a range of days spanning a whole year. I've restricted the time from between 3:30am and 8:30pm which encompasses the earliest sunrise and latest sunset of 2018 in the Kamloops area, rounded to the nearest 30 minutes. Source: https://www.nrc-cnrc.gc.ca/eng/services/sunrise/advanced.html
+Note: It would be good to automate that step somehow.
+
+- Maximum Flow Path length (http://www.saga-gis.org/saga_tool_doc/6.0.0/ta_hydrology_27.html . Generated both the catergorical and continuous variations with the diffferent methods. Could investigate influence of changing parameters of channel network input. 
+
+14. Change Grid Value: Changes the grid values of 0 to -99999 (i.e.: no data) for the insolation grids
+15. Export Raster: The final output(s)
+
+
+
+### Parameters: 
+
+Certain parameters are defined within the toolchain which are important for some of the SAGA layers in order to keep things relatively efficient as well as accurate. These parameters include:
+
+scale_param: This defines the TRI (ruggedness) search area and channel network length. Essentially, the function scales up the resulting value at low resolutions and scales it down at higher resolutions. Since ruggedness looks at an area around the focal cell, it's important to scale this based on resolution since differences will be miniscule at low resolutions, but more dramatic at higher resolutions. This is also used in the "channel network" grid tool to define how long a channel needs to be before it is no longer considered a channel, thus at high resolutions channels need to be continuous for a longer segment before they are considered a channel.
+
+mrvbf_param: This defines the "initial threshold for slope" parameter in the MRVBF algorithm. The math is based on the paper that this originally came from as well as a very helpful infographic retrieved from here: https://www.nrcs.usda.gov/wps/PA_NRCSConsumption/download?cid=stelprdb1258050&ext=pdf 
+
+tpi_param: This defines a search radius around a cell. I figured since it has to do with topographic position, search radius should be the same value in cells at each scale. This will create different results at each resolution as well which might help indicate why certain resolutions are more important than others.
+
+openness_param: This parameter is for using the multi-scaled approach to defining openness. I found through exhaustive testing that this parameter is best defined by half the number of columns, which produced the best looking (least blocky) result out of the plethora of other trials ran.
+
+
+### Covariate comparisons, 
+
+Some initial testing of the covariates for Deception was conducted to 
+assess the most important stand level covariates. 
+
+
+
+
+
+
+
+
+
+
+
+
