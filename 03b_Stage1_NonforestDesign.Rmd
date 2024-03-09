@@ -1,0 +1,606 @@
+---
+title: "Stage 1 Non-forested model development in Machine-learning Predictive Ecosystem Maps"
+subtitle: "by Will MacKenzie"
+Methods author: "Will MacKenzie"
+Script author: "Gen Perkins, Will MacKenzie, Kiri Daust"
+date: "8/06/2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+```{r global_options, include=FALSE }
+require(knitr)
+
+```
+
+```{r setup, include=FALSE}
+
+
+library(data.table)
+library(scales)
+library(caret)
+library(sf)
+library(ranger)
+library(tidyverse)
+library(fasterize)
+library(stringr)
+library(dplyr)
+library(raster)
+library(readxl)
+library(foreach)
+library(tidymodels)
+library(themis)
+library(vip)
+library(stringi)
+library(R.utils)
+require(terra)
+
+```
+
+## Introduction
+This script classifies non-forested/forested zones within the study area. A Latin Hypercube is then used to select sampling points. This is currently done at a 10m resolution. This script performs several steps:
+
+1. Read in training points generated from external data collection (VRI, cutblocks, roads) see script: Where no data is available a submodule/ script will be generated to automate the generation of sample points by extracting random pts from clasified VRI - harvest layer (check the accuracy of forest/non-forest with remoted sensed data - not currently automated), then random sample from forest, non-forest, cutblocks, water and roads.
+
+2. Generates a randomForest to seperate forest from non forest using satellite imagery, canopy height models, dem and dem derived layers. This list will be refined over time. 
+
+3. Assess the accuracy of Forest/Non forest split and adjust covariables as needed. 
+
+4. Once non-forest area identified, create a cumulative latin hypercube, using sat images, canopy cover, DEMs/derivatives, TPI, TWI SLOP, or Principal components of these variables, then generate training points. 
+
+
+##0. Set Project Specific folders
+
+```{r project specs, include=FALSE }
+
+AOI <- "Deception"
+# set up file structure
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+input_pnts_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+# read in temp functions
+source(here::here('_functions', 'model_gen_tidy.R'))
+source(here::here('_functions', 'acc_metrix.R'))
+
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+# #read in the fuzzy index
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic.csv")) %>%
+  dplyr::select(c(target, Pred, fVal))
+  
+fMat <- data.table(fMat)
+
+# read in model parameters 
+model_param <- file.path(AOI_dir, "_MapUnitLegend", "models.xlsx")
+
+# set up model parameters:  
+mparam <- read_xlsx(model_param, "models") %>% filter(to_run == 1)
+map_res <- mparam$resolution
+data_res <- paste0("att_", map_res, "m")
+mname <- paste0(mparam$model_name)
+mrep <- mparam$model_rep
+
+# check which catergory of model to be produced
+mtype <- case_when(
+  str_detect(mname, "for_nf")  ~ "forest_non_forest",
+  str_detect(mname, "nf_") ~ "non_forest",
+  str_detect(mname, "fore") ~ "forest"
+)
+
+# get covariates
+mcov <- read_xlsx(model_param, "covariates", skip = 2) %>%
+  filter(!!sym(mparam$covariates) == 1) %>%
+  dplyr::select(covariate)
+
+# get training point sets
+mtpt <- read_xlsx(model_param, "training_pts", skip = 2) %>%
+  filter(!!sym(mparam$training_pts) == 1) %>%
+  dplyr::select(tp_code)%>%
+  pull
+
+# get the map unit level 
+mmu <- read_xlsx(model_param, "map_unit", skip = 2) %>%
+   filter(!!sym(mparam$map_unit) == 1) %>%
+  dplyr::select(legend_column)%>%
+  pull
+
+mmu <- case_when(
+  mmu == "column_mu" ~ "MapUnit", 
+  mmu == "column_ss" ~ "SiteSeries",
+  mmu == "column_ass" ~ "Association",
+  mmu == "column_cls" ~ "Class",
+  mmu == "column_grp" ~ "Group",
+  mmu == "column_typ" ~ "Type"
+)
+
+# get covariates
+mcov <- read_xlsx(model_param, "covariates", skip = 2) %>%
+  dplyr::filter(C1 == 1) %>%
+  dplyr::select(covariate)
+
+rast_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", full.names = TRUE)
+
+# filter based on covariate for model param
+rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in% tolower(mcov$covariate)]
+
+mcols <- gsub(".tif","", tolower(basename(rast_list)))
+
+```
+
+##1. read in training data 
+
+###Create training point set for each physiognomic type
+
+Extract training points from VRI derived datasets. 
+
+```{r  training points }
+
+# read in training points from existing file (if created)
+
+if(file.exists(file.path(training_dir, "vri_train_pts_att.gpkg"))){
+  
+  pntcov <- st_read(file.path(training_dir, "vri_train_pts_att.gpkg"))
+                    
+  } else {
+  
+    print("attributing training data points")
+     
+    pnts <- st_read(file.path(training_dir, "vri_train_pts.gpkg"))
+  
+    # stack covaraites and extrat points 
+    ancDat <- stack(rast_list)
+  
+    # extract ptns and add XY map legend cols. 
+    covs <-  raster::extract(ancDat, pnts)
+    pntcov <- cbind(st_coordinates(pnts), pnts, covs)
+  
+    st_write(pntcov, file.path(training_dir, "vri_train_pts_att.gpkg"))
+  }
+
+
+# split into all the groups 
+# "BMFO" "CFO"  "NF"   "CB"   "LA"   "RO"
+# unique(pntcov$mapunit1)
+
+# we can also re-run with the merge 
+pntcov1 <- pntcov %>%
+  dplyr::mutate(mapunit1 = ifelse(mapunit1 == "BMFO", "FO", mapunit1))
+
+pntcov1 <- pntcov1 %>%
+  dplyr::mutate(mapunit1 = ifelse(mapunit1 == "CFO", "FO", mapunit1))             
+
+pntcov <- pntcov1                
+
+## tried to convert the stars but nto working 
+#rcovs <- stars::read_stars(rast_list)
+#tptn <- aggregate(stars_object, sf_object, function(x) x[1], as_points = TRUE)
+
+tptn <- pntcov %>% 
+  st_drop_geometry() %>%
+  filter(complete.cases(.)) %>%
+  mutate(mapunit1 = as.factor(mapunit1)) %>%
+  select(-c(X,Y))
+
+```
+
+```{r tune model, eval = FALSE}
+## Tune the model : 
+  
+  randf_spec <- rand_forest(mtry = tune(), min_n = tune(), trees = 1000) %>%
+#randf_spec <- rand_forest(mtry = 20, min_n = 2, trees = 1000) %>%
+  set_mode("classification") %>%
+  set_engine("ranger", importance = "impurity") #or "permutations
+
+# mtry = how many leaves to you sample at each tree
+# trees = number of trees, just need enough
+# min_n = how many data points need to be in node before stop splitting
+
+  pem_workflow <- workflow() %>%
+      add_recipe(null_recipe ) %>%
+      add_model(randf_spec)
+  
+  cv_metrics <- metric_set(accuracy, roc_auc, j_index)
+  
+  set.seed(345)
+  pem_cvfold <- vfold_cv(tptn, 
+                            v = 10, 
+                            repeats = 3, 
+                            strata = mapunit1)
+
+  
+# Tune the model
+# ##https://www.youtube.com/watch?v=ts5bRZ7pRKQ
+# https://www.tidymodels.org/start/case-study/
+# http://www.rebeccabarter.com/blog/2020-03-25_machine_learning/
+#install.packages("tictoc")
+
+library(tictoc)
+
+# # look at more bound options (ie c(2, 6, 10))
+ranger_tune_detail <-
+  grid_regular(
+    mtry(range = c(2, 40)),
+    min_n(range = c(2, 10)),
+    levels = 5)
+
+# # re-run the tuning with the explicit parameter sets
+tic()
+set.seed(4556)
+doParallel::registerDoParallel()
+ranger_tune <-
+  tune_grid(pem_workflow,
+            resamples = pem_cvfold,
+            #metrics = cv_metrics,
+            grid = ranger_tune_detail)
+toc()
+
+saveRDS(ranger_tune, file = paste(paste0(".", outDir), "parameter_tune_results.rds", sep = "/"))
+
+# explore ranger tune output
+ranger_tune %>%
+  dplyr::select(.metrics) %>%
+  unnest(cols = c(.metrics))
+
+# explore results of tuning models note different for type of model selected
+select_best(ranger_tune, metric = "accuracy")
+select_best(ranger_tune, metric = "roc_auc")
+#select_best(ranger_tune, metric = "j_index")
+
+autoplot(ranger_tune)
+
+# Plot the impact of different values for the hyperparamters. note these are randomly selected for the number of grids specified (ie. grid = 20).
+# This provides an overview of the impact of ech tune paramter. Note this provides an overview as we dont know what min_n was each mtry etc...
+# this can be used to set up the tune grid paramter
+
+ranger_tune %>%
+  collect_metrics() %>%
+  filter(.metric == "roc_auc") %>%
+  dplyr::select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+               values_to = "value",
+               names_to = "parameter") %>%
+  ggplot(aes(value, mean, colour = parameter)) +
+  geom_point(show.legend = FALSE)+
+  facet_wrap(~parameter)
+
+```
+
+# Run the model
+
+Use ranger randomforest to build a classifiaction model for the groups (Cutblocks, Water, Forest (Treed - coniferous), Forest- TBTM (Treed mixed and treed broadleaf), non-forest and road. 
+
+We will use a 10 x 5 cross fold valialidation, stratified by the class to assess accuracy and fit. 
+
+```{r}
+# set recipe
+
+  null_recipe <- recipe(mapunit1 ~ ., data = tptn) 
+
+# set up CV
+
+  set.seed(345)
+  pem_cvfold <- vfold_cv(
+    tptn,
+    v = 10,
+    repeats = 5,
+    strata = mapunit1
+  )
+  
+  randf_spec <- rand_forest(mtry = 10, min_n = 2, trees = 200) %>% 
+    set_mode("classification") %>%
+    set_engine("ranger", importance = "permutation", verbose = FALSE) 
+  
+  pem_workflow <- workflow() %>%
+    add_recipe(null_recipe) %>%
+    add_model(randf_spec)
+  
+  #######################################################
+  
+  set.seed(4556)
+  cv_results <- fit_resamples(pem_workflow,
+                              resamples = pem_cvfold,
+                              control = control_resamples(save_pred = TRUE))
+  
+  # collect metrics
+  cv_metrics <- cv_results  %>% collect_metrics(summarize = FALSE)
+  cv_metrics_sum <- cv_results %>% collect_metrics()
+  
+  # collect predictions
+  cv_pred <- cv_results %>% collect_predictions(summarize = FALSE)
+  
+  cv_pred_sum <- cv_results %>% collect_predictions(summarize = TRUE)
+  cv_pred_sum <- cv_pred_sum %>% dplyr::select(mapunit1, .pred_class)
+
+```
+
+Confusion matrix 
+
+```{r}
+conf_matrix <- cv_pred_sum %>% 
+   conf_mat(mapunit1, .pred_class) %>%
+   pluck(1) %>%
+   as_tibble() %>%
+   ggplot(aes(Prediction, Truth, alpha = n)) +
+   geom_tile(show.legend = FALSE) +
+   geom_text(aes(label = n), colour = "black", alpha = 1, size = 3) + 
+   theme(axis.text.x = element_text(angle = 90)) + 
+   labs(main = "Example Test Confusion Matrix")
+    
+ conf_matrix
+
+```
+
+# Run the final model 
+
+```{r}
+# final model run with all data 
+  
+final_recipe <- recipe(mapunit1 ~ ., data = tptn) 
+
+pem_workflow <- workflow() %>%
+    add_recipe(final_recipe) %>%
+    add_model(randf_spec)
+  
+PEM_final <- fit(pem_workflow, tptn)
+
+
+# write out model
+saveRDS(PEM_final, file = paste(out_dir, "final_tmodel.RDATA", sep = "/"))
+saveRDS(PEM_final, file = paste(out_dir, "final_tmodel.rds", sep = "/"))
+
+```
+
+```{r variable importance }
+  randf_final <- rand_forest(mtry = 20, min_n = 2, trees = 1000) %>%
+     set_mode("classification") %>%
+     set_engine("ranger", importance = "permutation") 
+  
+  # # calculate the final variable importance per model
+   final_vip <- workflow() %>%
+     add_recipe(null_recipe) %>%
+     add_model(randf_final) %>%
+     fit(tptn) 
+   
+  # report final VIP oob - all values 
+  oob_final_vip  <- round(final_vip$fit$fit$fit$prediction.error, 3)
+  oob_final_vip 
+  
+    final_vip <-  final_vip %>%
+     pull_workflow_fit() %>%
+     vip(num_feature = 20)
+  
+  final_vip
+
+```
+
+
+## Predict non-forested extent of map area and export raster
+
+```{r Predict NonForest Extent Map}
+
+# read in required functions 
+source(here::here('_functions', 'predict_map_tidy.R'))
+
+model <- file.path(out_dir, "final_tmodel.rds")
+cov <- rast_list
+
+predict_map_tidy(model, cov, tilesize = 500, out_dir)
+  
+mosaic_map_tidy(out_dir)
+
+mosaic <- read_stars(file.path(out_dir, "mosaic.tif"))
+
+
+
+```
+
+
+
+
+
+
+
+
+## STILL TO BE UPDATES
+
+
+
+
+# generate a clhc sample for only non-forested regions 
+
+First select the spatial layers to define the environmental space for non-forested area. This maybe a subset of layers used to split forest/non-forest, PCA of all spatial layers or defined layers. 
+```{r generate a water mask}
+
+# mask to nonforest areas
+water <- raster(file.path(cov.dir, "10m", "sen__MNDWI.tif"))
+
+# remove deep waterbodies # using threshold
+water[water > 0.5] <- NA
+
+```
+
+
+```{r dataPrep, tidy = TRUE}
+
+# prep layers for cumulative latin hyper cube sampling and returns a raster stack . Multiple options 
+
+# 1 = custom list 
+# 2 = top accuracy layers from Forest/ non-forest Model 
+# 3 = top Gini layers from FOrest / non-forest Model 
+# 4 = PCA of all layets 
+
+rlayers <- function(option) { 
+  rastList <- list.files(file.path(cov.dir, "10m"))
+  if(option == 1) {
+    print ("using custom list of rasters") 
+    lays = c("DEM.tif", "slope.tif", "ldr_conindex.tif",  "ldr_cov.tif", "ldr_p50.tif", 
+             "ldr_p75.tif", "ldr_p90.tif", "ldr_p95.tif", "slope.tif", "TPI.tif" , "TWI.tif",
+             "sen__DVI.tif", "sen__GNDVI.tif", "sen__MSAVI.tif" , "sen__NDVI.tif" , "sen__NDWI.tif",
+             "sen__NRVI.tif", "sen__SAVI.tif", "sen__SLAVI.tif", "sen__SR.tif", "sen__TTVI.tif" , 
+             "sen__TVI.tif", "sen__WDVI.tif") 
+    
+    rastList <- rastList[rastList %in% lays]
+    rast <- stack()
+    for(i in 1:length(rastList)){
+      temp <- raster(file.path(cov.dir, "10m", rastList[i]))
+      rast <- stack(rast,temp)
+    } 
+    
+    rast <- mask(rast,water)
+    rast
+    
+  } else {
+    if(option == 2) { 
+      # option 2 : top Accuracy layers from F/ NF model 
+      print ("using top Accuracy layers") 
+      topAcclayers <- paste0(rownames(imp)[1:5],".tif")
+      topAcclayers <- rastList[rastList %in% topAcclayers]
+      rast <- stack()
+      for(i in 1:length( topAcclayers)){
+        temp <- raster(file.path(cov.dir, "10m",  topAcclayers[i]))
+        rast <- stack(rast,temp)
+      }
+      rast
+ 
+    } else {
+      
+      if(option == 3) { 
+        # option 3 : top Accuracy layers from F/ NF model
+        print ("using top Gini layers") 
+        topGinilayers = paste0(rownames(imp_gini)[1:5],".tif")     
+        topGinilayers <- rastList[rastList %in% topGinilayers]
+        rast <- stack()
+        for(i in 1:length( topGinilayers)){
+          temp <- raster(file.path(cov.dir, "10m",  topGinilayers[i]))
+          rast <- stack(rast,temp)
+        }
+      rast  
+      
+      } else { 
+        
+        if(option == 4) { 
+          print ("deriving PCA - this may take some time! go grab a coffee") 
+          # option 3: PCA of all layers 
+          pcalayers <- stack()
+          rastList <- list.files(file.path(cov.dir, "10m"))
+          
+          for(i in 1:length(rastList)){
+            temp <- raster(file.path(cov.dir, "10m", rastList[i]))
+            pcalayers <- stack(pcalayers, temp)
+          }
+          
+          # create a mask with non-forest and deep water
+          x <- mask(x, water)
+          pcalayers <- mask(pcalayers, x)
+          tic()
+          pcastack <- rasterPCA(pcalayers, nSamples = NULL, nComp = 5, spca = FALSE)
+          toc()
+          rast <- pcastack$map
+          rast 
+          
+        }
+      }
+    } 
+  }
+} 
+
+
+# select the raster stack option 
+
+rast <- rlayers(4)
+
+#ancDatx <- mask(ancDat, x)
+ #Replace NA with 0
+#ancDatx [is.na(ancDatx )] <- 0
+
+
+```
+
+
+## Step 5.  Calculate Optimal Number of cLHS Points
+
+None of the optimization methods suggested in literature worked properly with categorical variables. Kiri built a new approach which calculates the proportion decrease in the objective function with increasing numbers of samples. 
+For the SBSmc2 of the Deception map area 25 samples was deemed to be sufficient to sample 90% of the 6 variable environmental space.
+
+NOte: generate around 500 points / about 50 per class ~ sliced with consecutive for adrian. 
+
+```{r sampleNum, tidy = TRUE, echo=FALSE}
+###may want to run function in next line to choose number of sample points#
+#  num <- numSamples(ancDatx) ### this function may take a little time applied to entire raster
+#  cat("95 percentile is:",num)
+#  #mSamp <- numSamples(ancDat = s) ### same function but applied to a subset of raster
+#  #cat("90 percentile is:",mSamp)
+#  plot
+```
+
+# Extract a cLHS sample set for remote sensing interpretation.
+The assessed training set is then used in a model build for only the non-forested portion of the study area.
+
+```{r cLHS_Sliced, warning=FALSE, error=FALSE}
+
+# sample points within the layer to create a fast clhc 
+
+s <- sampleRegular(rast, size = 500000, sp = TRUE) # sample raster
+s <- s[!is.na(s$PC1),] # remove cells outside of area
+rownames(s@data) <- NULL
+s@data <- cbind(s@data,s@coords) # add lat and long
+
+
+# set up number of samples per slice and exclusion value 
+
+maxSample <- 500
+sliceSize <- 100
+radExc <- 35
+numSlice <- (maxSample)/sliceSize
+
+# run the first cl
+t1 <- clhs(s, size = 100, iter = 5000, simple = F, progress = T, cost = NULL) 
+#cLHSAccumCostSurface. Use 5000 iterations for a normal run
+ 
+sPoints <- t1$sampled_data
+sPoints$SliceNum <- 1
+
+# loop to create all slices
+for(i in 2:numSlice){ ###loops and create new slices
+#  for(pt in rownames(sPoints@data[sPoints$SliceNum == (i-1),])){ 
+#     tDist <- try(spDistsN1(pts = s, pt = s[pt,]))
+#    if(class(tDist) != "try-error") s <- s[tDist > radExc | tDist == 0,]
+#    else{
+#      i <- i - 1
+#      sPoints <- sPoints[sPoints$SliceNum != i,]
+#    }
+#  }
+  temp <- clhs(s, size = sliceSize*i, iter = 100, simple = F, progress = F, cost = NULL, 
+               include = which(rownames(s@data) %in% rownames(sPoints@data)))
+  temp <- temp$sampled_data
+  temp <- temp[!rownames(temp@data) %in% rownames(sPoints@data),] 
+  temp$SliceNum <- i
+  sPoints <- rbind(sPoints, temp) 
+}
+
+
+samplePoints <- st_as_sf(sPoints) 
+### add index values
+rownames(samplePoints) <- NULL
+#samplePoints$Subzone <- BGC.choose
+samplePoints$SliceSite <- rep(1:sliceSize, numSlice)
+samplePoints$TotNum <- 1:maxSample
+samplePoints$ID <- paste(samplePoints$SliceNum, ".",samplePoints$SliceSite,"_",samplePoints$TotNum, sep = "")
+#samplePoints <- samplePoints[,-c(1:7)]
+
+plot(x)
+plot(st_geometry(samplePoints
+                 ),add = T)
+#st_write(samplePoints, file.path(output.dir, "NFpts.shp"))
+
+st_write(samplePoints, dsn = file.path(output.dir, "NFpts.gpkg"), layer='nonforest')
+
+```

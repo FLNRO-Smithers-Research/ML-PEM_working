@@ -1,0 +1,652 @@
+---
+title: "Stage 1 Sample Design for Heli sample points"
+Script authors: "Kiri Daust and Gen Perkins" 
+date: "08/29/2020"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r global_options, include=FALSE}
+require(knitr)
+
+```
+
+This script generates samples points for helicopter sampling. Points are generated useing  the travelling salesman problem scripting developed by Kiri Daust. 
+
+This script uses a combination of python scripting so can be sensitive to set-up. 
+
+
+Paired sample transects are generated as per methods outlines in "03_stage 1 SampleDesign.Rmd". 
+
+```{r setup, include=FALSE}
+devtools::install_github("kdaust/clhs")
+
+library(clhs) ##make sure to install the kdaust version
+library(sf)
+library(data.table)
+#library(sp)
+library(terra)
+library(gdistance)
+library(foreach)
+library(data.table)
+library(fasterize)
+library(reticulate)
+#library(here)
+library(stats)
+#library(raster)
+library(tidyverse)
+library(LearnGeom)
+library(stars)
+#library(plyr)
+```
+
+
+### Source scripts
+
+```{r source}
+source_python("./_functions/mTSP.py")
+source(here::here('_functions', '_Transect_Functions.R'))
+```
+
+
+```{r setup user directories}
+# set up parameters for scripting 
+
+AOI <- "DateCreek"
+#aoi <- "ESSFwv"
+#AOI <- "Deception" # set study are AOI 
+aoi <- "ESSFmcw" # set the bgc of interest
+rad_exclusion = 1000
+
+AOI.dir <- file.path(paste0(AOI, "_AOI"))
+datLocGit <- file.path(AOI.dir, "0_raw_inputs", "base_layers")
+covLoc <- file.path(AOI.dir, "1_map_inputs", "covariates", "25m")
+mask_path <- file.path(AOI.dir, "2_sample_design", "stage1_StudyDesign","input_raster")
+prev_points <- file.path(AOI.dir, "2_sample_design", "stage1_StudyDesign","transect_layout")
+out_path <- file.path(AOI.dir, "2_sample_design", "stage1_StudyDesign","clhs_sample_plans")
+
+# read in covars
+#covars <- paste(covLoc, c("DAH_LS.tif","Landform_LSs.tif","MRVBF_LSs.tif","dem.tif"), sep = "/")
+# 
+# covars <- paste(covLoc, c("25m_DAH_3Class.tif","25m_LandformClass_Default_Seive4.tif",
+#                           "25m_MRVBF_Classified_IS64Low6Up2.tif","dem.tif"), sep = "/")
+# layerNames <- c("DAH","LFC","MRVBF","DEM","cost") ##need to change this if you change the layers
+
+
+covars <- paste(covLoc, c("dah_LS.tif","landform_LSs.tif",
+                          "mrvbf_LS.tif"), sep = "/")
+layerNames <- c("DAH","LFC","MRVBF","cost") ##need to change this if you change 
+
+
+ancDat <- rast(covars)
+terra::crs(ancDat) <- "epsg:3005"
+
+# read in slope data
+slope <- rast(file.path(covLoc, "slope.tif"))
+terra::crs(slope) <- "epsg:3005"
+
+# read dem
+alt <- rast(paste0(covLoc, "/dem_preproc.tif"))
+terra::crs(alt) <- "epsg:3005"
+
+
+##road and lake buffer
+#buff <- st_read(paste0(datLocGit,"/ESSF_Buffer.gpkg"))
+buff <- vect(file.path(mask_path, paste0(aoi, "_exclude_poly.gpkg"))) %>% 
+  project("epsg:3005")
+
+
+## clip to just ESSF
+boundary <- vect(paste0(datLocGit,"/bec.gpkg"))
+boundary <- boundary[,"BGC_LABEL"]
+boundary <- boundary[boundary$BGC_LABEL == aoi,] ## set as mask for individual BGC
+
+b2 <- terra::rasterize(boundary, slope)
+buff <- terra::rasterize(buff, slope)
+buff <- terra::mask(buff,b2)
+ancDat <- terra::mask(ancDat,buff)
+
+##read in drop points
+heliDrop <- st_read(paste0(datLocGit,"/heli_start_point.gpkg")) %>%
+  mutate(name = aoi)
+heliDrop <- heliDrop[,"name"]
+#heliDrop <- st_transform(heliDrop, 3005)
+#heliDrop <- st_zm(heliDrop)
+# <- heliDrop[boundary,]
+start <- as(heliDrop, "Spatial")
+
+
+# included <- st_read(file.path(prev_points,"raw", paste0("previously_sampled_", aoi,".gpkg")))
+# included <- included %>% 
+#   dplyr::select(id)
+
+# # read in already sampled locations
+# included <- st_read(paste0(datLocGit,"/ESSF_sampledpairs.gpkg"))
+# included <- st_transform(included, st_crs(ancDat))
+# included <- included[boundary,]
+# #if(nrow(included) == 0){included = NULL}
+
+```
+
+### Create transition layer
+
+This chunk creates a transition layer from the DEM to account for downhill and uphill sections. It uses an adaptions to Tobler's hiking function to calculate potential walking speed. 
+
+```{r translayer}
+# 
+# altDiff <- function(x){x[1]-x[2]}
+# tr <- transition(alt, transitionFunction = altDiff, directions = 8, symm = F)
+# tr <- geoCorrection(tr)
+# adj <- adjacent(alt, cells = 1:ncell(alt), pairs = T, directions = 8)
+# tr[adj] <- 1.5*exp(-3.5*abs(tr[adj] + 0.1)) ##tobler's hiking function
+# 
+# tr <- geoCorrection(tr)
+
+
+# version 2: 
+# 
+slope <- terra::terrain(alt, v = "slope", neighbors = 8, unit = "radians") # convert these radians to rise/run in next line
+
+alt <- (3/5) * 6*exp(-3.5*abs(tan(slope) + 0.05)) * (40/60)## this converts km/hr to minutes/25m pixel
+# 40 x 25 = 1lm / 60 minutes from hours
+altAll <- 1/alt %>% round(3)
+
+altRast <- raster(altAll)
+ # create  transition layer
+tr <- transition(altRast, transitionFunction = function(x) 1/mean(x,na.rm = T), 
+                 directions = 8, symm = F)
+tr <- geoCorrection(tr)
+
+#acost_version2 <- accCost(tr1,startPnts[1,])
+# calculate the cost layer for travel  
+#plot(acost_version1)
+#plot(acost_version2)
+#writeRaster(acost_version2, "acost_version2.tif")
+#writeRaster(acost, paste0(x,"_acost_heli_test.tif"))
+
+
+```
+
+
+### Setup to run TSP
+
+```{r setup}
+##max time per day
+maxTime <- 8L ##hours
+## time per transect
+plotTime <- 45L ##mins
+
+listComb <- function(a,b){
+  t1 <- rbind(a$sampled_data,b$sampled_data)
+  t2 <- b$obj
+  t3 <- c(a$final_obj,b$final_obj)
+  list(sampled_data = t1, obj = t2, final_obj = t3)
+}
+
+###main function to create layout
+createLayout <- function(startPnts, slices, toInclude, nPoints, iter = 10000){
+  
+ # # # # test line
+   slices = 5
+   i = 1
+   #startPnts = start[c(combs[1,i],combs[2,i]),]
+   startPnts <- start
+   toInclude = NULL
+   nPoints = 5
+   iter = 10000
+   # end test lines
+  
+  isInc <- nrow(toInclude) > 0
+  
+  if(slices > 1){ #If more than one slice
+    
+    print("generating multiple slice")
+    
+    spoints <- foreach(x = 1:slices, .combine = listComb) %do% { ##run one slice per drop point
+    acost <- accCost(tr, startPnts[x,])
+    acost <- acost/3600
+    acost <- rast(acost)
+    lays <- c(ancDat,acost)
+    names(lays) <- layerNames
+    
+    if(isInc){
+      incPnts <- raster::extract(lays, toInclude, sp = T)
+      incPnts <- incPnts[,-(1)]
+      incPnts <- st_as_sf(incPnts)
+      incIdx <- 1:nrow(incPnts)
+      size = nPoints/2 + nrow(incPnts) # might need to remove /2
+    }else{
+      incIdx <- NULL
+      size = nPoints/2 ##??
+    }
+    
+    if(x == 2){ ##add points from slice 1
+      inc2 <- templhs$sampled_data
+      temp <- raster::extract(acost, inc2["geometry"], sp = T) %>% st_as_sf()
+      inc2$cost <- temp$layer
+      #if(isInc) incPnts <- rbind(incPinc, inc2)
+      if(isInc) incPnts <- rbind(incPnts, inc2)
+      else incPincPnts <- inc2
+      incIdx <- 1:nrow(incPnts)
+      size = nPoints/2 + nrow(incPnts) # might need to remove /2
+    }
+    
+    s <- sampleRegular(lays , size = 5000000, sp = TRUE) # sample raster
+    s <- s[!is.na(s$DAH) & !is.infinite(s$cost),]
+    s <- st_as_sf(s)
+    
+    ## have to add already sampled points to data
+    if(isInc | x == 2 ) s <- rbind(incPnts, s)
+    
+     templhs <- clhs(s, size = size,
+                         must.include = incIdx,
+                         iter = iter ,
+                         simple = FALSE,
+                         progress = TRUE,
+                         cost= "cost",
+                         use.cpp = T) # Run cLHS on the sampleable area
+   
+    
+      list(sampled_data = templhs$sampled_data,obj = templhs$obj, final_obj = templhs$final_obj)
+      
+      } # end of multiple slice loop
+     
+     }else{ # if only one slice: 
+       
+    print("generating one slice")
+    x = 1
+    acost <- accCost(tr, startPnts[x,])
+    acost <- acost/3600
+    acost <- rast(acost)
+    lays <- c(ancDat,acost)
+    names(lays) <- layerNames
+    
+    if(isInc){
+      incPnts <- raster::extract(lays, toInclude, sp = T)
+      incPnts <- incPnts[,-(1)]
+      incPnts <- st_as_sf(incPnts)
+      incIdx <- 1:nrow(incPnts)
+      size = nPoints + nrow(incPnts)
+    }else{
+      incIdx <- NULL
+      size = nPoints
+    }
+    
+    s <- terra::spatSample(lays , size = 5000000, method = "regular", xy = TRUE) # sample raster
+    s <- s[!is.na(s$DAH) & !is.infinite(s$cost),]
+    coords <- s[,c("x","y")]
+    s <- s[,layerNames]
+    #s <- st_as_sf(s)
+    
+    ## have to add already sampled points to data
+    if(isInc ) s <- rbind(incPnts, s)
+    
+     templhs <- clhs(s, size = size,
+                         must.include = incIdx,
+                         iter = iter ,
+                         simple = FALSE,
+                         progress = TRUE,
+                         cost= "cost",
+                         use.cpp = T,
+                         latlon = coords,
+                     min.dist = 200) # Run cLHS on the sampleable area
+   
+     # # check if the sites are too close together 
+     # clhs_sampled <- st_as_sf(templhs$sampled_data)
+     # 
+     #  for(j in 1:nrow(clhs_sampled)){ # Filter the close together samples from the cLHS run
+     #   # j = 1
+     #    if(!is.na(clhs_sampled[j, ])){
+     #      distances <- data.frame(distance = st_distance(clhs_sampled, clhs_sampled[j, ])) %>%
+     #        rownames_to_column() %>%
+     #        mutate_all(as.numeric) %>%
+     #        dplyr::filter(distance > rad_exclusion | distance == 0)
+     #      clhs_sampled <- clhs_sampled[distances$rowname, ]
+     #    }
+     #  }
+     # 
+     #  if(length(clhs_sampled$geometry)< size){
+     #    #rerun <- rerun + 1 
+     #    #sample_points
+     #    print("points selected are less than sizes less than selected, re-running clhs")
+     #     repeat{
+     #       
+     #       templhs <- clhs(s, size = size,
+     #                       must.include = incIdx,
+     #                       iter = iter ,
+     #                       simple = FALSE,
+     #                       progress = TRUE,
+     #                       cost= "cost",
+     #                       use.cpp = T) # Run cLHS on the sampleable area
+     #       
+     #       
+     #       # check if the sites are too close together 
+     #       clhs_sampled <- st_as_sf(templhs$sampled_data)
+     #       
+     #       for(j in 1:nrow(clhs_sampled)){ # Filter the close together samples from the cLHS run
+     #         # j = 1
+     #         if(!is.na(clhs_sampled[j, ])){
+     #           distances <- data.frame(distance = st_distance(clhs_sampled, clhs_sampled[j, ])) %>%
+     #             rownames_to_column() %>%
+     #             mutate_all(as.numeric) %>%
+     #             dplyr::filter(distance > rad_exclusion | distance == 0)
+     #           clhs_sampled <- clhs_sampled[distances$rowname, ]
+     #         }
+     #       }
+     #       if(length(clhs_sampled$cost) == size){
+     #         print("correct number of pts generated")
+     #         #sample_points_extra <- sample_points_extra 
+     #         #st_crs(sample_points_extra) <- 3005
+     #         #sample_points_extra <- rbind(clhs_sampled, sample_points_extra)
+     #         #clhs_sampled_buff <- st_buffer(sample_points_extra, dist = rad_exclusion) # Extract and buffer the cLHS points
+     #         #lays <- mask(lays, clhs_sampled_buff, inverse = TRUE)      # Mask the sampleable area for the next clhs repeat (only if successful!)
+     #         
+     #         break # stop the repeat clhs loop if corect number achieved
+     #       }
+     #       # if the number is still less than required repeat the above code until correct number is produced
+     #       print("rerunning clhs")
+     #     }
+     # 
+     #  } else { 
+     # 
+       spoints  = list(sampled_data = templhs$sampled_data,obj = templhs$obj, final_obj = templhs$final_obj)
+      
+     }
+
+  pnts <- spoints$sampled_data
+  pdf <- pnts %>% cbind(st_coordinates(.)) %>% st_drop_geometry() 
+  pnts <- pdf %>% group_by(X,Y) %>%
+    dplyr::summarise(across(everything(), max, na.rm = TRUE), .groups = 'drop') %>%
+    st_as_sf(., coords = c("X","Y"), crs = 3005)
+  
+  plot(acost)
+  plot(pnts, add = T)
+  
+  st_write(pnts, "test_pnt7.gpkg")
+  
+  # p2 <- st_as_sf(pnts)
+  # pnts <- pnts[,"DAH"]
+  # colnames(pnts) <- c("name","geometry")
+  # st_geometry(pnts) <- "geometry"
+  # startPnts <- st_as_sf(startPnts) %>% st_transform(st_crs(pnts))
+  # pnts <- rbind(pnts, startPnts)
+  # pnts2 <- as(pnts, "Spatial")
+  # 
+  # ## create distance matrix between sample points
+  # test <- costDistance(tr,pnts2,pnts2)
+  # dMat2 <- as.matrix(test)
+  # dMat2 <- dMat2/60
+  # dMat2[is.infinite(dMat2)] <- 1000
+  # 
+  # ##penalty based on quality of points
+  # objVals <- spoints[["final_obj"]][1:nPoints]
+  # objVals <- max(objVals) - objVals
+  # minPen <- (maxTime*60L)/2L
+  # maxPen <- (maxTime*60L)*2L
+  # objVals <- scales::rescale(objVals, to = c(minPen,maxPen))
+  # objVals <- as.integer(objVals)
+  # 
+  # ##fixed start, arbitrary end
+  # dMat2 <- rbind(dMat2, rep(0, ncol(dMat2)))
+  # dMat2 <- cbind(dMat2, rep(0, nrow(dMat2)))
+  # indStart <- as.integer(nPoints:(nPoints+nrow(startPnts)-1))
+  # indEnd <- as.integer(rep(nrow(dMat2)-1,nrow(startPnts)))
+  # 
+  # ##run vehicle routing problem from python script
+  # ## GCS is global span cost coefficient
+  # vrp <- py_mTSP(dat = dMat2, num_days = 2L, start = indStart, end = indEnd, 
+  #                max_cost = maxTime*60L, plot_time = plotTime, penalty =  objVals, arbDepot = T, GSC = 8L)
+  # 
+  # return(list(route = vrp, objective = spoints$obj[iter],pnts = pnts))
+  }
+
+```
+
+# create simple heli layout based on a simple multi drop design. This does not include a vehicle routing problem layout. 
+
+
+```{r}
+
+###main function to create layout
+createHeliDropLayout <- function(startPnts, slices, toInclude, nPoints, iter = 10000){
+  
+ # # # # # test line
+ #   slices = 1
+ #   i = 1
+ #   startPnts = start
+ #   toInclude = included
+ #   nPoints = 5
+ #   iter = 10000
+ #   # end test lines
+  
+  
+  isInc <- nrow(toInclude) > 0
+  
+  # if(slices > 1){ #If more than one slice
+  #   
+  #   print("generating multiple slice")
+  #   
+  #   spoints <- foreach(x = 1:slices, .combine = listComb) %do% { ##run one slice per drop point
+  #   # test line
+  #   # x = 1
+  #   # end test line
+  #   acost <- accCost(tr, startPnts[x,])
+  #   acost <- acost/3600
+  #   lays <- stack(ancDat,acost)
+  #   names(lays) <- layerNames
+  #   
+  #   if(isInc){
+  #     incPnts <- raster::extract(lays, toInclude, sp = T)
+  #     incPnts <- incPnts[,-(1)]
+  #     incPnts <- st_as_sf(incPnts)
+  #     incIdx <- 1:nrow(incPnts)
+  #     size = nPoints/2 + nrow(incPnts) # might need to remove /2
+  #   }else{
+  #     incIdx <- NULL
+  #     size = nPoints/2
+  #   }
+  #   
+  #   if(x == 2){ ##add points from slice 1
+  #     inc2 <- templhs$sampled_data
+  #     temp <- raster::extract(acost, inc2["geometry"], sp = T) %>% st_as_sf()
+  #     inc2$cost <- temp$layer
+  #     #if(isInc) incPnts <- rbind(incPinc, inc2)
+  #     if(isInc) incPnts <- rbind(incPnts, inc2)
+  #     else incPincPnts <- inc2
+  #     incIdx <- 1:nrow(incPnts)
+  #     size = nPoints/2 + nrow(incPnts) # might need to remove /2
+  #   }
+  #   
+  #   s <- sampleRegular(lays , size = 5000000, sp = TRUE) # sample raster
+  #   s <- s[!is.na(s$DAH) & !is.infinite(s$cost),]
+  #   s <- st_as_sf(s)
+  #   
+  #   ## have to add already sampled points to data
+  #   if(isInc | x == 2 ) s <- rbind(incPnts, s)
+  #   
+  #    templhs <- clhs(s, size = size,
+  #                        must.include = incIdx,
+  #                        iter = iter ,
+  #                        simple = FALSE,
+  #                        progress = TRUE,
+  #                        cost= "cost",
+  #                        use.cpp = T) # Run cLHS on the sampleable area
+  #  
+  #   
+  #     list(sampled_data = templhs$sampled_data,obj = templhs$obj, final_obj = templhs$final_obj)
+  #     
+  #     } # end of multiple slice loop
+  #    
+  #    }else{ # if only one slice: 
+  #      
+    print("generating one slice")
+    acost <- accCost(tr, start)
+    #acost <- acost/3600
+    lays <- stack(ancDat,acost)
+    names(lays) <- layerNames
+    
+    if(isInc){
+      incPnts <- raster::extract(lays, toInclude, sp = T)
+      incPnts <- incPnts[,-(1)]
+      incPnts <- st_as_sf(incPnts)
+      incIdx <- 1:nrow(incPnts)
+      size = nPoints + nrow(incPnts)
+    }else{
+      incIdx <- NULL
+      size = nPoints
+    }
+    
+    s <- sampleRegular(lays , size = 5000000, sp = TRUE) # sample raster
+    s <- s[!is.na(s$DAH) & !is.infinite(s$cost),]
+    s <- st_as_sf(s)
+    
+    ## have to add already sampled points to data
+    if(isInc ) s <- rbind(incPnts, s)
+    
+     templhs <- clhs(s, size = size,
+                         must.include = incIdx,
+                         iter = iter ,
+                         simple = FALSE,
+                         progress = TRUE,
+                         cost= "cost",
+                         use.cpp = T) # Run cLHS on the sampleable area
+   
+    
+       spoints  = list(sampled_data = templhs$sampled_data,obj = templhs$obj, final_obj = templhs$final_obj)
+      
+
+  pnts <- spoints$sampled_data
+  pdf <- pnts %>% cbind(st_coordinates(.)) %>% st_drop_geometry() 
+  pnts <- pdf %>% group_by(X,Y) %>%
+    dplyr::summarise(across(everything(), max, na.rm = TRUE), .groups = 'drop') %>%
+    st_as_sf(., coords = c("X","Y"), crs = 3005)
+
+}
+
+
+
+## Run 10 replicates to see how the layout looks
+
+for(i in 1:10){
+  
+r1 <- createHeliDropLayout(start, slices= 1,included, 5, iter = 10000)
+
+st_write(r1, paste0("heli_clhs_", i, ".gpkg"))
+}
+
+
+
+```
+
+
+ Set up parallel workers
+
+```{r parallel}
+#worker.init <- function(){
+#  Rcpp::sourceCpp("_functions/CppLHS.cpp")
+#}
+
+require(doParallel)
+#cl <- makePSOCKcluster(detectCores()-11)
+#clusterCall(cl, worker.init)
+registerDoParallel(cl)
+```
+
+
+### Create layout for each combination of dropsites
+
+```{r runLayout}
+dropInd <- 1:nrow(heliDrop)
+combs <- combn(dropInd, m = 2) ## pair combinations
+
+### run clhs and tsp
+outStats <- foreach(i = 1:ncol(combs), .combine = c, 
+                    .packages = c("Rcpp","reticulate","sf","raster","gdistance","foreach"),
+                    .noexport = "c_cor") %dopar% {
+  source_python("./_functions/mTSP.py")
+                      
+ i = 1                    
+                      
+  res <- createLayout(startPnts = start[c(combs[1,i],combs[2,i]),], slices = 1, toInclude = included, nPoints = 5)
+  
+  route <- res$route
+  temp <- data.frame(start = paste(combs[1,i],combs[2,i],sep = "_"),
+             cost = sum(unlist(route[[2]])), 
+             num = paste(length(route[[1]][["0"]]),length(route[[1]][["1"]])), 
+             objFun = res$objective,
+             totNum = sum(length(route[[1]][["0"]]),length(route[[1]][["1"]])))
+  out <- list(list(stats = temp, solution = route,points = res$pnts))
+  names(out) <- i
+  out
+}
+
+### extract statistics from result
+stats <- foreach(i = 1:ncol(combs), .combine = rbind) %do% {
+  outStats[[i]][["stats"]]
+}
+##subset to runs with 5 transects in each drop
+stats <- stats[stats$num == "6 6",]
+ids <- rownames(stats[order(stats$cost),])
+```
+
+### Create shortest paths and output routes
+
+```{r output}
+
+## function to create and output layout for each id
+writeLayout <- function(id,filename){
+  vrp <- outStats[[id]][["solution"]]
+  pnts <- outStats[[id]][["points"]]
+  result <- vrp[[1]]
+  
+  ## create spatial paths
+  paths <- foreach(j = 0:(length(result)-1), .combine = rbind) %do% {
+    if(length(result[[as.character(j)]]) > 2){
+      cat("Drop site",j,"...\n")
+      p1 <- result[[as.character(j)]]+1
+      out <- foreach(i = 1:(length(p1)-1), .combine = rbind) %do% {
+        temp1 <- pnts[p1[i],]
+        temp2 <- pnts[p1[i+1],]
+        temp3 <- shortestPath(tr,st_coordinates(temp1),
+                              st_coordinates(temp2),output = "SpatialLines") %>% st_as_sf()
+        temp3$Segment = i
+        temp3
+      }
+      out$DropSite = j
+      out
+    }
+    
+  }
+
+  paths <- st_transform(paths, 3005)
+  st_write(paths, dsn = filename, layer = "Paths", append = T, driver = "GPKG")  
+  
+  ## label points
+  p2 <- pnts
+  p2$PID <- seq_along(p2$name)
+  p2 <- p2[,"PID"]
+  p2$DropLoc <- NA
+  p2$Order <- NA
+  for(i in 0:(length(result)-1)){
+    p1 <- result[[as.character(i)]]+1
+    p1 <- p1[-1]
+    p2$DropLoc[p1] <- i
+    p2$Order[p1] <- 1:length(p1)
+  }
+  p2 <- st_transform(p2, 3005)
+  st_write(p2, dsn = filename,layer = "Points", append = T,overwrite = T, driver = "GPKG")
+  return(TRUE)
+}
+
+## write gpkgs for each full route
+for(x in 1:length(ids)){
+  writeLayout(id = ids[x], filename = file.path(out_path, paste0(aoi, "_heli_pts_v2", x,".gpkg")))
+}
+```
+
+
+
+Once the clhs sample options have been created, review the results and select a sample plan that works best. 
+We can then generate paired transects and maps in preparation for the sampling using the stand alone Create Sample Transects script.

@@ -1,0 +1,556 @@
+---
+title: "Stage 1 Sample Design with replacements"
+subtitle: "by Will MacKenzie, Kiri Daust, Gen Perkins"
+Methods author: "Will MacKenzie"
+Script authors: "Kiri Daust; Will MacKenzie; Colin Chisholm; Gen Perkins, Matt Coghill" 
+date: "09/08/2022"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r global_options, include=FALSE}
+require(knitr)
+```
+
+# Sample Design with Replacement
+
+After the creation of stage 1 sample plan, there are occasions when a single or multiple sites need to be changed or reselected. In this case there are multiple methods; 1) Manual replacement or 2) automated replacement. 
+
+in both cases replacement is based on finding equivalent environmental space for the site which has been rejected. The script below used base layers created in the development of sample plan script (03a_Stage1_sampleDesign.Rmd) to replace sites while accounting for sites which are already layed out. 
+
+This script requires: 
+
+- exising s1_sampling.gpks
+- covarates used in sample design (i.e 25m; DAH, landscape, etc) or the Landscape Validation layer, created in 02a_DEM_SpatialLayer_Prep.R script. 
+
+
+```{r setup, include=FALSE}
+rm(list = ls())
+
+
+#library(velox)
+library(raster)
+library(sf)
+library(fasterize)
+library(gdistance)
+library(tidyverse)
+library(LearnGeom)
+library(stars)
+library(plyr)
+library(data.table)
+library(reticulate)
+#devtools::install_github ("pierreroudier/clhs") 
+library(clhs)
+library(foreach)
+library(sp)
+library(foreach)
+library(here)
+library(stats)
+library(raster)
+library(tidyverse)
+library(plyr)
+
+```
+
+
+# Option 1: manually replace a single site (stand alone option)
+
+```{r}
+
+# Date Creek replacement sites 
+# need to sample
+ badPointNames <- c('ICH mc 2_2.2_7_cLHS',
+                   'ICH mc 2_2.5_10',
+                   'ICH mc 2_3.2_12',
+                   'ICH mc 2_3.5_15',
+                   'ICH mc 2_4.4_18',
+                   'ICH mc 2_5.2_22',
+                   'ICH mc 2_5.4_24_cLHS')
+
+aoi <- "DateCreek"
+sampleplan <- "s1_sampling_V3.gpkg"
+
+transect_folder <- file.path(paste0(aoi, "_AOI"), "2_sample_design", "stage1_StudyDesign",
+                             "transect_layout")
+raster_folder <- file.path(paste0(aoi, "_AOI"), "1_map_inputs", "covariates",
+                           "25m")
+
+st_layers(file.path(transect_folder, sampleplan))
+
+points <- st_read(file.path(transect_folder, sampleplan ), "s1_sampling_V3")
+
+covariates <- list.files(raster_folder,full.names = T)
+covariates <- covariates[grep("tif",covariates)]
+covariates <- covariates[c(2,3,9,12)]
+
+ancDat <- raster::stack(covariates)
+
+badPoints <- points[points$id %in% badPointNames, c("id","geom")]
+
+new_sample_space <- function(badPoints,ancDat,basename){##
+  for(i in 1:nrow(badPoints)){
+    cat("Processing point",i)
+    currPt <- badPoints[i,]
+    covarVals <- extract(ancDat,currPt)
+    sArea <- calc(ancDat, fun = function(x){if(x[1] == covarVals[1,1] 
+                                               & x[2] == covarVals[1,2] 
+                                               & x[3] == covarVals[1,3] 
+                                               & x[4] == covarVals[1,4]) 1 else 0})
+    writeRaster(sArea, file.path(transect_folder, paste0("NewSampleArea_",currPt$id,".tif")),format = "GTiff", overwrite = TRUE)
+  }
+  return(TRUE)
+}
+
+new_sample_space(badPoints,ancDat,"NewSpace_ICHmc2")
+```
+
+
+
+# Option 2: Replace sites using entire sample design 
+
+This option will re-create missing sites within the slices of the entire S1 sample Design. 
+Incorporating previous sampling plots or adjusting the slice if sites are unavailable. 
+
+
+```{r}
+# input parameters
+
+#AOI <- "Deception"
+AOI <- "DateCreek"
+
+map_res <- 25 # Defines resolution of map to use for cLHS
+transect_length <- 250 # Define the length of triangle on each side
+heli = TRUE
+
+map_res_character <- paste0(map_res, "m")
+AOI.dir <- file.path(paste0(AOI, "_AOI"))
+shapes_path <- file.path(AOI.dir, "0_raw_inputs", "base_layers")
+raster_path <- file.path(AOI.dir, "1_map_inputs", "covariates", map_res_character)
+out_path <- file.path(AOI.dir, "2_sample_design", "stage1_StudyDesign")
+sampling_raw_folder <- file.path(out_path, "input_raster")
+clhs_outpath <- file.path(out_path, "clhs_sample_plans")
+mask_path <- file.path(AOI.dir, "2_sample_design", "stage1_StudyDesign","input_raster")
+
+centroid_distance <- 400
+rad_exclusion <- 1000
+
+```
+
+
+```{r}
+
+# read in covars
+covars <- paste(raster_path, c("DAH_LS.tif","Landform_LSs.tif","MRVBF_LSs.tif"), sep = "/")
+layerNames <- c("DAH","LFC","MRVBF","cost") ##need to change this if you change the layers
+ancDat <- raster::stack(covars)
+proj4string(ancDat) <- "+init=epsg:3005"
+
+
+# read in slope data
+slope <- raster(file.path(raster_path, "slope.tif"))
+proj4string(slope) <- "+init=epsg:3005"
+
+# read dem
+alt <- raster(paste0(raster_path, "/dem.tif"))
+proj4string(alt) <- "+init=epsg:3005"
+
+# read in sites that were previously sampled.  
+transect_out_path <- file.path(out_path, "transect_layout")
+prev_samples <- list.files(file.path(transect_out_path, "raw"), pattern = ".gpkg$")
+
+# date Creek
+prev_samples <- grep("previously_sampled_ESSFwv.gpkg", prev_samples, perl = TRUE, value = TRUE)
+
+previous_sites  <- foreach(i = prev_samples, .combine = rbind) %do% {
+      st_read(file.path(transect_out_path, "raw", i))
+    }       
+
+# # Deception verion 
+# prev_samples <- grep("previous_*", prev_samples, perl = TRUE, value = TRUE)
+# xx <- st_read(file.path(transect_out_path, "raw", prev_samples)) %>%
+#   mutate(idval = transect_id) %>%
+#   separate(idval, c("type", "bgc","slice_num","slice_size"), "_") %>%
+#   select(-c(type, bgc)) %>%
+#   mutate(total = seq(1,length(slice_size),1),
+#           subzone = "ESSFmcw") %>%
+#   rowwise %>%
+#   mutate(slice_num = as.numeric(slice_num) + 1)
+# 
+# previous_sites  <- xx
+
+
+# for each of the bec units 
+  
+boi <- "ESSFwv"
+
+#for (b in boi) {
+ 
+  b <- boi[1]
+    
+  if (heli == TRUE) {
+    
+    ##road and lake buffer
+    buff <- st_read(file.path(mask_path, paste0(b, "_exclude_poly.gpkg"))) %>% 
+      st_transform(3005)
+    
+    ## clip to just ESSF
+    boundary <- st_read(paste0(shapes_path ,"/bec.gpkg"))
+    boundary <- boundary[,"BGC_LABEL"]
+    boundary <- boundary[boundary$BGC_LABEL == b,] ## set as mask for individual BGC
+    b2 <- st_union(boundary)
+    b2 <- fasterize(boundary, slope)
+    buff <- fasterize(buff, slope)
+    buff <- mask(buff,b2)
+    ancDat <- mask(ancDat,buff)
+        
+    ##read in drop points
+    heliDrop <- st_read(paste0(shapes_path,"/heli_start_point2.gpkg")) %>%
+      mutate(name = b)
+    heliDrop <- heliDrop[,"name"]
+    start <- as(heliDrop, "Spatial")
+
+    
+    # might need to switch this out for updated function 
+    altDiff <- function(x){x[1]-x[2]}
+    tr <- transition(alt, transitionFunction = altDiff, directions = 8, symm = F)
+    tr <- geoCorrection(tr)
+    adj <- adjacent(alt, cells = 1:ncell(alt), pairs = T, directions = 8)
+    tr[adj] <- 1.5*exp(-3.5*abs(tr[adj] + 0.1)) ##tobler's hiking function
+    tr <- geoCorrection(tr)
+
+    acost <- accCost(tr, start)
+    #acost <- acost/3600
+    lays <- stack(ancDat,acost)
+    names(lays) <- layerNames
+    
+    boi_mask <- raster(file.path(out_path, "input_raster", paste0(b,"_exclude_mask.tif"))) 
+    names(boi_mask) = "delete"
+    sample_layers_masked <- stack(lays, boi_mask) %>%  # add cost surface to stack
+      raster::mask(boi_mask) 
+    
+    sample_layers_masked <- dropLayer(sample_layers_masked, 5)
+    
+  } else {
+    
+  # filter area able to place points
+  boi_mask <- raster(file.path(out_path, "input_raster", paste0(b,"_exclude_mask.tif"))) 
+  names(boi_mask) = "cost"
+  sample_layers_masked <- stack(ancDat, boi_mask) %>%  # add cost surface to stack
+    raster::mask(boi_mask) # mask by buffered cost surface
+  names(sample_layers_masked) <- layerNames
+    
+  } # end of Heli or nor heli 
+  
+  for(rot in 2:10){
+     # rot = 1
+  
+    # generate clhs points
+      paired_distance <- 100
+      num_samples <- 15
+      slice_size <- 5
+      num_slices <- round(num_samples/slice_size)
+    
+      # create a empty sf object and add points
+      tmp <- st_sfc()
+      class(tmp)[1] <- "sfc_POINT" # for points
+      sample_points <- st_sf(DAH=integer(0),
+                     MRVBF=integer(0),
+                     LFC = integer(0),
+                     cost=integer(0),
+                     slice_num = integer(0), geometry=tmp)%>%
+      st_set_crs(3005)
+
+    # Index the previous sites to add to clhs. TO do this we need to 
+      # convert the sp points and the raster brick to a data frame. 
+      
+    # convert raster brick to data frame and remove NA values
+      lays_df <- as.data.frame(sample_layers_masked, xy = TRUE)
+      lays_df <- lays_df  %>% drop_na()
+      # convert the base layer to sf object 
+      lays_sf <- st_as_sf(lays_df,coords = c("x","y")) %>%
+        st_set_crs(3005)
+      
+      prev_xy <- previous_sites %>% filter(subzone == b)
+      prev_xy <- cbind(prev_xy, st_coordinates(prev_xy)) %>%
+          rename_with(tolower)
+      
+    #collect reference locations of lays data frame for previous samples.
+     lays_prev <- lays_sf %>%
+       mutate(rowno = as.integer(rownames(lays_sf))) %>%
+       st_join(prev_xy) %>%
+       filter(!is.na(id))
+
+      # convert gemetry to match the data merge (convert geom to geometry)
+      sample_points_all_slice <- prev_xy %>%
+        st_drop_geometry() %>%
+        st_as_sf(., coords = c("x","y")) %>%
+        st_set_crs(3005)
+      
+      
+      #buffer previous sites and asign a very high cost 
+      
+     #prev_site_cost_buff <- st_buffer(sample_points_all_slice, dist = rad_exclusion) 
+      #             
+      # # Check if points overlap buffer and then remove 
+      # lays_df_SF <- lays_df %>%
+      #      st_as_sf(., coords = c("x","y")) %>%
+      #      st_set_crs(3005)
+      #           
+      # to_cost <- st_intersection(lays_df_SF, prev_site_cost_buff) %>%
+      #       dplyr::select(geometry) %>%
+      #       mutate(cost_update = 100000) 
+      #             
+      # # this part is slow and could be sped up..
+      # lays_df_buffered <- st_join(lays_df_SF, to_cost) 
+      #   
+      # lays_df_buffered <- lays_df_buffered %>%
+      #   mutate(cost = ifelse(!is.na(cost_update), cost_update, cost)) %>%
+      #   select(-cost_update) 
+      #             
+      # lays_df <- cbind(st_coordinates(lays_df_buffered), lays_df_buffered) %>%
+      #     st_drop_geometry() %>%
+      #     dplyr::rename(x = X, y = Y)
+      #             
+     # for(i in 1:2){ 
+     for(i in 1:num_slices){ # For each slice, perform cLHS (if there is sampleable area left from previous slices)
+        print (paste0("slice: ",i))
+         # i <- 1 #slice no
+ 
+            # filter the sites already in the slice and check if extras needed
+            prev_sample_points <- sample_points_all_slice %>% filter(slice_num == i)
+            sites_required <- 5 - length(unique(prev_sample_points$id))
+            lays_prev_slice <- lays_prev %>%  filter(slice_num == i)
+                
+            # check how many sites need to be genertad - if not rbind to data 
+          if(sites_required > 0 ){
+                   
+            clhs_slice <- clhs(lays_sf,
+                                size = slice_size,
+                                must.include = as.matrix(c(lays_prev_slice$rowno)), 
+                                iter = 10000,
+                                simple = FALSE,
+                                progress = TRUE,
+                                cost= "cost",
+                                use.cpp = T) # Run cLHS on the sampleable area
+            
+           clhs_sampled <- st_as_sf(clhs_slice$sampled_data, coords = c("x","y")) %>%
+                    mutate(slice_num = i) %>%
+                    dplyr::select(-c(DAH, LFC, MRVBF)) %>%
+                    st_set_crs(3005)
+                     
+     
+         for(j in 1:nrow(clhs_sampled)){ # Filter the close together samples from the cLHS run
+           
+                if(!is.na(clhs_sampled[j, ])){
+                    distances <- data.frame(distance = st_distance(clhs_sampled, clhs_sampled[j, ])) %>%  
+                      rownames_to_column() %>%
+                      mutate_all(as.numeric) %>%
+                      dplyr::filter(distance > rad_exclusion | distance == 0)
+                      clhs_sampled <- clhs_sampled[distances$rowname, ]
+                                              }
+                  }
+                     
+                  # if number of sites is less than selected add a interator and this clhs willl be re-run using the repeat loop below  
+         if(length(clhs_sampled$slice_num) < slice_size){
+          
+              print("points selected are less than sizes less than selected, re-running clhs")
+                  
+              # if the slice was not complete then rerun               
+
+              tmp <- st_sfc()
+                class(tmp)[1] <- "sfc_POINT" # for points
+                sample_points_extra <- st_sf(DAH=integer(0),
+                                 MRVBF=integer(0),
+                                 LFC = integer(0),
+                                 cost=integer(0),
+                                 slice_num = integer(0), geometry=tmp)%>%
+                st_set_crs(3005)
+
+              repeat{
+                  clhs_slice <- clhs(lays_sf,
+                                size = slice_size,
+                                must.include = as.matrix(c(lays_prev_slice$rowno)),  
+                                iter = 10000,
+                                simple = FALSE,
+                                progress = TRUE,
+                                cost= "cost",
+                                use.cpp = T) # Run cLHS on the sampleable area
+         
+              clhs_sampled <- st_as_sf(clhs_slice$sampled_data, coords = c("x","y")) %>%
+                  mutate(slice_num = i) %>%
+                   dplyr::select(-c(DAH, LFC, MRVBF)) %>%
+                  st_set_crs(3005)
+         
+        for(j in 1:nrow(clhs_sampled)){ # Filter the close together samples from the cLHS run
+                       
+                if(!is.na(clhs_sampled[j, ])){
+                    distances <- data.frame(distance = st_distance(clhs_sampled, clhs_sampled[j, ])) %>%  
+                      rownames_to_column() %>%
+                      mutate_all(as.numeric) %>%
+                      dplyr::filter(distance > rad_exclusion | distance == 0)
+                      clhs_sampled <- clhs_sampled[distances$rowname, ]
+                                              }
+                  }
+  
+        if(length(clhs_sampled$slice_num)== slice_size) {
+                
+          print("correct number of pts generated")
+                #sample_points_extra <- sample_points_extra
+                #st_crs(sample_points_extra) <- 3005
+                
+                sample_points_extra <- rbind(clhs_sampled, sample_points_extra)
+                
+                # buffer the sites for the next iteration
+                
+                print("buffering selected points from sampling area")                   # if correct number of samples is selected then continue to next slice 
+             
+                clhs_sampled_buff <- st_buffer(sample_points_extra, dist = rad_exclusion) 
+                
+                to_cost <- st_intersection(lays_sf, clhs_sampled_buff) %>%
+                   dplyr::select(geometry) %>%
+                   mutate(cost_update = 100000) 
+                  
+              # this part is slow and could be sped up..
+                lays_df_buffered <- st_join(lays_sf, to_cost)  %>%
+                  mutate(cost = ifelse(!is.na(cost_update), cost_update, cost)) %>%
+                  dplyr::select(-cost_update) 
+      
+                lays_sf<- lays_df_buffered
+                #cbind(st_coordinates(lays_df_buffered), lays_df_buffered) %>%
+                #  st_drop_geometry() %>%
+                #  dplyr::rename(x = X, y = Y)
+                
+                
+                 #buffer previous sites and asign a very high cost 
+                      
+        break # stop the repeat clhs loop if corect number achieved
+         }
+      # if the number is still less than required repeat the above code until correct number is produced
+      print(paste0(length(clhs_sampled$slice_num), " sites generated, rerunning clhs"))
+   
+       }
+  
+          sample_points <- bind_rows(sample_points, sample_points_extra )
+      
+      #  } # end of extra repeats to add
+
+               } else { # if the correct number of sites produced then skip to buffer 
+              
+              print("buffering selected points from sampling area")                   # if correct number of samples is selected then continue to next slice 
+              clhs_sampled_buff <- st_buffer(clhs_sampled, dist = rad_exclusion) 
+                  
+             to_cost <- st_intersection(lays_sf, clhs_sampled_buff ) %>%
+                dplyr::select(geometry) %>%
+                mutate(cost_update = 100000) %>%
+               distinct()
+               
+      
+      # this part is slow and could be sped up..
+             lays_df_buffered <- st_join(lays_sf, to_cost)  %>%
+                mutate(cost = ifelse(!is.na(cost_update), cost_update, cost)) %>%
+                dplyr::select(-cost_update) 
+      
+             lays_sf <- lays_df_buffered
+      
+              # add the sample points to the cumulative list
+              sample_points <- bind_rows(sample_points, clhs_sampled) 
+                  
+              } # end of loop adding sites where full complement of sites were generates
+           
+           
+            } else {
+                 
+                  print (paste0(i , " slice completed previously, skipping to next slice"))
+                
+                  prev_sample_points <- prev_sample_points %>%
+                      dplyr::select(c(slice_num, geometry))
+                  
+                  # buffer the areas of this site for next sampling 
+                    clhs_sampled_buff <- st_buffer(prev_sample_points, dist = rad_exclusion) 
+                  
+                      # Check if points overlap buffer and then remove 
+                 # lays_df_SF <- lays_df  %>%
+                #    st_as_sf(., coords = c("x","y")) %>%
+                #    st_set_crs(3005)
+                  
+                  to_cost <- st_intersection(lays_sf, clhs_sampled_buff) %>%
+                    dplyr::select(geometry) %>%
+                    mutate(cost_update = 100000) 
+                  
+                  # this part is slow and could be sped up..
+                  lays_df_buffered <- st_join(lays_sf, to_cost)  %>%
+                    mutate(cost = ifelse(!is.na(cost_update), cost_update, cost)) %>%
+                    dplyr::select(-cost_update) 
+                
+                  lays_sf <- lays_df_buffered  
+                # lays_df <- cbind(st_coordinates(lays_df_buffered), lays_df_buffered) %>%
+                #    st_drop_geometry() %>%
+                #    dplyr::rename(x = X, y = Y)
+          
+                  sample_points <- bind_rows(sample_points, prev_sample_points)
+                  
+                  } # end of slice loop where no extra points needed. 
+
+
+              } # end of slices loop  
+
+
+  # convert to df to do full join
+ sample_df <- sample_points_all_slice 
+ sample_df <- cbind(sample_df, st_coordinates(sample_df)) %>%
+   st_drop_geometry()
+ 
+sample_points_df <- sample_points
+sample_points_df <- cbind( sample_points_df , st_coordinates( sample_points_df )) %>%
+   st_drop_geometry()
+  
+  xx <- full_join(sample_df, sample_points_df,  by = c("X", "Y")) %>%
+    dplyr::select(-c(DAH, MRVBF, LFC, cost, slice_num.x)) %>%
+    dplyr::rename("slice_num" = slice_num.y) %>%
+    mutate(subzone = b, rotation = "cLHS") 
+
+  sample_points_all <- xx %>%
+  arrange(slice_num)
+
+  
+
+#sample_points
+#   
+# add the missing sites number for each slice
+ out <- foreach(i = unique(sample_points_all$slice_num), .combine = rbind) %do%{
+      #i = unique(sample_points_all$slice_num)[1]
+      temp1 <- sample_points_all %>% filter(slice_num == i)
+      missing.no = temp1$slice_size[!is.na(temp1$slice_size)]
+      to.add <- dplyr::setdiff(seq(1:5), missing.no)
+      temp1$slice_size[is.na(temp1$slice_size)] <- to.add
+      temp1
+  }
+
+sample_points_all <- out %>%
+#    sample_points_all <-  sample_points_all %>%
+    arrange(slice_num, slice_size) %>%
+   st_as_sf(coords = c("X","Y")) %>%
+      st_set_crs(3005)
+
+sample_points <- mutate(sample_points_all, total = 1:nrow(sample_points_all)) %>%
+  mutate(id = paste0(subzone, "_", slice_num, ".", slice_size, "_", total)) %>%
+  dplyr::select(names(.)[!(names(.) %in% names(lays))])
+
+#rot = 3
+
+ st_write(sample_points, dsn = file.path(clhs_outpath, paste0("clhs_pts_heli_",rot,"_", b,".gpkg")), driver = "GPKG")  
+# #sample_points
+
+
+#st_write(sample_points, dsn = file.path(clhs_outpath, "update_previous_sites", paste0("clhs_pts",rot,"_", b,".gpkg")), append = T, driver = "GPKG")  
+#sample_points
+
+  } # end loop of rotations
+
+} # end of BGC loop 
+    
+
+
+```
