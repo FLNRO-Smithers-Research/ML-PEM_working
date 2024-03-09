@@ -1,0 +1,198 @@
+---
+title: "External Accuracy Assessment of Machine-learning Predictive Ecosystem Maps"
+subtitle: "by Will MacKenzie & Kiri Daust"
+Methods author: "Will MacKenzie"
+Script author: "Gen Perkins; Kiri Daust; Will MacKenzie; Colin Chisholm; "
+date: "8/06/2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+```{r global_options, include=FALSE }
+require(knitr)
+
+```
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+
+
+library(sf)
+library(lwgeom)
+library(raster)
+library(dplyr)
+library(stars)
+library(tidyverse)
+# library(sp)
+# library(gdistance)
+# library(stars)
+# library(plyr)
+# library(foreach)
+# library(doSNOW)
+# library(stars)
+# library(iterators)
+# library(LearnGeom)
+# library(tmap)
+# library(viridis)
+# library(shinyjs)
+# library(formatR)
+# library(tidyr)
+# library(fasterize)
+# library(randomForest)
+# #library (here)
+# library (reshape)
+# library (ggplot2)
+# library(scales)
+# library(data.table)
+# library(clhs)
+# library(caret)
+# library(tictoc)
+# #library(velox)
+# library(doParallel)
+# library(caret)
+# library(tidyverse)
+# library(reshape2)
+# library(vcd)
+# library(magrittr)
+# require(Rcpp)
+# require(DMwR)
+# require(scales)
+# require (rasterVis)
+ #here()
+```
+
+# Introdution
+
+This script is used to assess the accuracy of PEM maps by generating external map accuracy measures. These metrics are to be used in conjuction with internal model metrics derived from repeat cross validation measures to guide improvements to the map.
+
+This script requires:
+- Predicted map surface 
+- Existing AA data set collected 
+
+
+```{r}
+
+# Set up folder and read in the external AA data
+
+AOI <- "Deception"
+
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+
+model_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+AA_dir <- file.path(AOI_dir,"3_maps_analysis", "external_AA")
+
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+```
+
+# Read in processed AA data 
+
+AA data is processed using the same methodology as transect data (2.5m scale). Both mapunit1 and mapunit2 are retained in the raster output for future use. As rasters can only store a single values a key is built using a combined mapunit1_mapunit2. For primary call analysis we need to mainpulate the key 
+
+```{r}
+
+AA_raster <- read_stars(file.path(AA_dir, "proc_AA_trans_raster.tif"))%>%
+    st_transform("EPSG:3005") 
+
+AA_rasterr <- raster(file.path(AA_dir, "proc_AA_trans_raster.tif")) 
+
+
+#proj = "+init=epsg:3005"
+
+#AA_rasterr <- projectRaster(AA_rasterr, res = 2.5, proj )
+
+trans_layout <- file.path(AOI_dir, "2_sample_design","stage1_AA_2019")
+trans_layout<- list.files(trans_layout, pattern = "AA_transect_layout_deception.gpkg$", full.names = TRUE, recursive = TRUE)
+
+#trans_layout<- list.files(AA_dir, pattern = "AA_all_lines.gpkg$", full.names = TRUE, recursive = TRUE)
+
+AA_layout <- st_read(trans_layout)%>%
+    st_transform("EPSG:3005") %>%
+    mutate(transect_id = ID) %>%
+    dplyr::select(transect_id) 
+
+# read in and format key: 
+AA_key <- read.csv(file.path(AA_dir, "map_key.csv"))
+
+AA_key <- AA_key %>% 
+  mutate(id = X) %>%
+  mutate(aa_id = str_split_fixed(mapunit12, "_",2)) %>%
+  dplyr::select(c(-X,-id))
+  
+```
+
+# Read in predicted map 
+
+Note for Deception only SBSmc2 was sampled using AA data. 
+
+```{r}
+# input model data 
+
+temp_path <-  "forest/fore_mu_bgc_S2/SBSmc2/predicted"
+
+pred_path <- file.path(model_dir, temp_path)
+
+pred_map_r <- raster(file.path(pred_path,"response.tif")) 
+# need to check this is projected to NAD83 : 3005
+
+pred_map_r_proj <- projectRaster(pred_map_r, AA_rasterr, 2.5, method = 'ngb')
+# project raster : 
+
+map_key <- read.csv(file.path(pred_path, "response_names.csv" )) %>%
+  dplyr::rename(map_mapunit_no = X,
+         map_id.1 = x)
+
+
+#for each of the transects crop the map and extract values 
+
+#for(trans in unique(AA_layout$ID)){
+  
+  trans = unique(AA_layout$transect_id)[1]
+  
+  tt <- AA_layout %>%
+     dplyr::filter(transect_id == trans)
+ 
+  # convert to points 
+  AA_tt <- crop(AA_rasterr, extent(tt))
+  AA_tt_s <- st_as_stars(AA_tt) %>%
+    st_transform("EPSG:3005") %>%
+    st_as_sf(AA_tt_s, as_points = T)
+  
+  # extract portion of map that overlaps with AA points 
+  map_tt <- crop(pred_map_r_proj , extent(tt))
+  map_tt  <- resample(map_tt, AA_tt, method = "bilinear")
+  map_tt_s <- st_as_stars(map_tt) %>%
+    st_transform("EPSG:3005") %>%
+    st_as_sf(map_tt_s, as_points = T ) 
+
+  
+  # remove points outside the AA_transect 
+  map_tt_s$within <- as.logical(rowSums(unlist(st_within(map_tt_s, AA_tt_s, sparse = FALSE)) == TRUE))
+    
+  map_tt_s <- map_tt_s[map_tt_s$within == TRUE, ]  ## removes areas not within transect 
+  map_points <- st_join(map_tt_s, AA_tt_s)
+  
+  #st_write(AA_tt_s, "test_AA.gpkg", delete_layer = TRUE)
+  #st_write(map_tt_s, "test_map.shp")
+  
+  map_points <- map_points %>%
+    st_drop_geometry() %>%
+    filter(!is.na(response)
+  
+
+  map_summary <- map_points %>%
+    group_by(response)
+           
+  order <- count(map_points, response, proc_AA_trans_raster) %>%
+    group_by(proc_AA_trans_raster) %>%
+    summarise(n = sum(n)) 
+library(janitor)
+tabyl(data$Type, sort = TRUE)
+table(data$Type, useNA = "ifany")
+
+```
+
+

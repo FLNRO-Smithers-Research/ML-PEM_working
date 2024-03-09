@@ -1,0 +1,68 @@
+---
+title: "TopoTransectGraphics"
+author: "Will MacKenzie"
+date: '2022-06-20'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4)
+
+library(topoDistance)
+library(gdistance)
+library(RColorBrewer)
+library(scales)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+plot(Yosemite$DEM, col = terrain.colors(99))
+xy <- matrix(ncol = 2, byrow = TRUE,
+             c(-119.5566, 37.72474,
+               -119.5157, 37.76688,
+               -119.4718, 37.76078))
+colnames(xy) <- c("longitude", "latitude")
+xy
+
+tdist <- topoDist(Yosemite$DEM, xy, paths = TRUE)
+tdist
+
+sdmColors <- colorRampPalette(c("blue", "green", "yellow", "orange", "red"), space = "rgb", interpolate = "linear")
+plot(Yosemite$SDM, col = sdmColors(99))
+
+tLCP <- topoLCP(Yosemite$DEM, costSurface = Yosemite$SDM, pts = xy, paths = TRUE)
+tLCP
+
+topoPathMap(Yosemite$DEM, xy, topoPaths = tLCP, type = "hillshade",
+            costSurface = Yosemite$SDM, pathWidth = 4, pathColor = "purple")
+lines(tdist[[2]], lty = 2, lwd = 2)
+
+topoProfile(Yosemite$DEM, topoPaths = tLCP, pts = 1000, 
+            type = "base", singlePlot = TRUE)
+
+xy <- matrix(ncol = 2, byrow = TRUE,
+   c(-119.5566, 37.7247,
+     -119.4718, 37.7608))
+YosPaths <- topoDist(Yosemite$DEM, xy, paths = TRUE)
+topoProfile(Yosemite$DEM, topoPaths = YosPaths)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

@@ -1,0 +1,206 @@
+---
+title: "Import of Stage 1 Field Transect data for Boundary from Avenza PDF maps schema and consolidate"
+subtitle: "by Gen Perkins"
+date: "10/06/2020"
+output: html_document
+---
+
+```{r global_options, include=FALSE }
+require(knitr)
+
+```
+
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(sf)
+library(stringr)
+library(lwgeom)
+library(foreach)
+library(scales)
+
+```
+
+## Introduction
+
+This script contains functionality for the import data collected by Avenza following field collection of triangular paired transects for Stage 1 data only. This was recreated for the standardised data collection used in Skeena
+
+1. Import transects from shapefiles or geopackage exported from Avenza PDF maps. Consolidate various years of data. 
+
+2. Converts data to vector triangles (using point to point). Specifically this converts the points to lines (or track log to lines), add the field sample data as attributes to the line. 
+
+
+## 1. Set up folder structure for Stage 1 sampling 
+
+```{r set up folder structure }
+
+#AOI <- "Buck"
+#AOI <- "OldFort"
+#AOI <- "Baboon"
+#AOI <- "Wetzinkwa"
+AOI <- "DateCreek"
+#AOI <- "WilliamsLake"
+#AOI <- "KIC_SE"
+
+res <- 5
+
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+
+trans_layout <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "transect_layout")
+trans_data <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "transect_data") 
+
+output_pnts_dir <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "training_pts")
+
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+if(!dir.exists(output_pnts_dir)) dir.create(output_pnts_dir, recursive = TRUE)
+
+```
+
+Setup functions 
+
+
+```{r Functions}
+
+source(here::here('_functions', 'extend_lines.R'))
+source(here::here('_functions', 'make_lines.R'))
+source(here::here('_functions', 'transect_sample.R'))
+source(here::here('_functions', 'multiline_to_line.R'))
+
+```
+
+
+## 1) Import and clean Avenza field transect data
+
+1. Import transects from shape files or geopackages exported from Avenza PDF maps. The shape files contain all data collected under the schema and so generally contain all transects collected to date on a single tablet. Need to separate using the original study design transect triangles.
+
+
+```{r import base files to run analysis, tidy = TRUE, warning=FALSE}
+
+trans <- list.files(trans_layout, pattern = ".gpkg$", full.names = TRUE, recursive = FALSE)
+
+transect_layout <- foreach(x = trans, .combine = rbind) %do% {
+  clhs_layers <- st_layers(x)
+  lines <- which(clhs_layers[["geomtype"]] %in% c("Line String", "Multi Line String"))
+  if(length(lines)) {
+    transects <- foreach(y = clhs_layers$name[lines], .combine = rbind) %do% {
+      transect <- st_read(x, y, quiet = TRUE) %>% 
+        rename_all(recode, geom = "geometry") %>% 
+        rename_all(.funs = tolower) %>%
+        dplyr::select(id) %>% 
+        mutate(id = as.character(id)) %>% 
+        st_transform(3005)
+    }
+  } 
+} #%>% dplyr::rename(ID = id)
+
+transect_layout <- unique(transect_layout)
+
+transect_layout_buf <- st_buffer(transect_layout, 10)
+
+st_write(transect_layout, file.path(output_pnts_dir, "transect_layout_s1.gpkg"), delete_layer = TRUE)
+
+#transect_layout <- st_read(file.path(output_pnts_dir, "transect_layout_s1.gpkg"))
+#transect_layout_buf <- st_buffer(transect_layout, 10)
+
+```
+
+
+2. Connect the placemarks waypoints into a traverse using the running number name assigned by PDF maps
+
+The following chunk creates some basic folders and loads in data that will be used across all sampling types (a raster template and the original CLHS transects).
+
+
+```{r prepare raw data (unzip data and split into points and lines)}
+## prepare point data sets 
+
+##note you can use the script (_standardise_avenza_input_field_names.R) to standardise the input variables. 
+
+poc_column <- "x03_pt_type"
+mapunit1_column <- "x04_mapunit"
+mapunit2_column <- "x06_mapunit"
+observer_column <- "x02_observe"
+transition_column <- "x05_transit"
+comment_column <- "x09_comment"
+
+
+shp <- list.files(file.path(trans_data), pattern = ".shp", full.names = TRUE, recursive = TRUE)
+
+tracks <- list.files(file.path(trans_data), pattern = "\\(1\\).shp", full.names = TRUE, recursive = TRUE)
+
+#points <- points[3]
+
+points <- shp[!shp %in% tracks]
+
+
+all_points <- foreach(x = points, .combine = rbind) %do% {
+  #x <- points[1]
+  print(x)
+      # when all the points are consolidated into a single geopackage 
+     points_read <- st_read(x, quiet = TRUE) %>%
+     st_transform(3005) %>% 
+     st_zm() %>% 
+     rename_all(.funs = tolower) %>%
+     mutate(mapunit1 = UQ(rlang::sym(mapunit1_column)),
+            mapunit2 = UQ(rlang::sym(mapunit2_column)),
+            point_type  = UQ(rlang::sym(poc_column)),
+            observer =  UQ(rlang::sym(observer_column)), 
+            transition = UQ(rlang::sym(transition_column)),
+            comments = UQ(rlang::sym(comment_column))) %>%
+     st_join(., transect_layout_buf, join = st_intersects) %>%
+     rename_all(.funs = tolower) %>%
+     rename(transect_id = id)
+  
+     if("name" %in% names(points_read)){
+       points_read <- points_read %>%
+         mutate(order = as.numeric(gsub("Placemark ", "", name)))
+     }
+     # } else {
+     #   
+     #   points_read <- points_read %>%
+     #     mutate(name = seq(1, length(mapunit1),1))
+     # }
+    points_read <- points_read %>%
+     dplyr::select(order, mapunit1, mapunit2, point_type, transect_id, observer, transition, comments) %>%
+     group_by(transect_id) %>%
+     arrange(as.numeric(order), by_group = TRUE) %>%
+     ungroup() 
+
+} %>% 
+  distinct(., .keep_all = TRUE) 
+
+#all_points <- all_points %>% 
+#rename(geom = geometry)
+
+# catergorise data types:
+points <- all_points %>%
+  mutate(data_type = ifelse(is.na(transect_id), "incidental", "s1"))
+
+# match to the baseunit key using mapunit legend & format observer column
+points_final <- format_mapunit_names(points, map.key)
+points_final <- fill_observer(points_final)
+ 
+# covert to lines 
+processed_transects <- make_lines(GPSPoints = points_final, 
+                                  Transects = transect_layout_buf, 
+                                  method = "pts2lines",  
+                                  tBuffer = 20, PROJ = 3005) %>%
+  mutate(mapunit1 = (trimws(mapunit1)),
+         mapunit2 = (trimws(mapunit2))) %>%
+  mutate(mapunit12 = paste0(mapunit1,"_", mapunit2)) %>%
+  mutate(mapunit12 = gsub("_NA","", mapunit12)) %>%
+  mutate(mapunit12 = gsub("_$","", mapunit12)) %>%
+  dplyr::select(-TID, -ID)
+
+st_write(processed_transects,  file.path(output_pnts_dir, "proc_s1_transects.gpkg"), 
+         delete_layer = TRUE)
+
+#processed_transects <- st_read(file.path(output_pnts_dir, "proc_s1_transects.shp"))
+
+st_write(points_final, file.path(output_pnts_dir, "s1_pts.gpkg"), delete_layer = TRUE)
+
+```

@@ -1,0 +1,266 @@
+---
+title: "05c_PEM_model_comparison"
+author: "G. Perkins"
+date: "06/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=FALSE,
+                      warning = FALSE, message = FALSE,
+                      results = 'show',
+                      eval = TRUE)
+```
+
+```{r, echo = FALSE, warnings = FALSE, message=FALSE}
+
+library(dplyr)
+library(tidyverse)
+library(foreach)
+
+```
+
+## Compare model accuracy
+
+As part of the model run, a summary file is written out for each model for the internal ML statistics (model_summary.R) and spatial map accuracy (map_summary.R) to enable comparison across models. 
+
+```{r set up folders, include = FALSE}
+#Define the study area, location of model outputs and type of model (forest or non-forest)
+
+AOI <- "Deception"
+#AOI <- "BoundaryTSA"
+
+# set up file structure
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models", "forest")
+
+
+```
+
+
+## 1: Internal machine learning statistics
+
+Comparison of training point datasets using ML accuracy measures
+
+```{r read in ML model data , echo = FALSE}
+
+# compare all models or just bgc models? 
+
+cat <- "fore_mu_bgc"
+
+#cat2 <- "fore_mu_all"
+
+model_data_bgc <- list.files(file.path(out_dir, cat), recursive = TRUE, pattern = "model_summary.RData", full.names = TRUE)
+
+
+# if cat2 exits {
+#model_data_all <- list.files(file.path(out_dir, cat2), recursive = TRUE, pattern = "model_summary.RData", full.names = TRUE)
+#} 
+
+
+model_data_bgc <- model_data_bgc[25:28]
+#model_file <- load(model_data[1])
+
+model_sum <- foreach(j = model_data_bgc, .combine = rbind) %do% {
+    #print(j)
+    file = load(j)
+    trDat_sum %>%
+      mutate(folder = paste(j))
+} 
+
+# temp fix 
+# model_sum$bgc =  gsub("_[[:digit:]].*","", model_sum$target)
+
+
+#model_sum2 <- foreach(j = model_data_all, .combine = rbind) %do% {
+    #print(j)
+#    file = load(j)
+#    trDat_sum%>%
+#      mutate(folder = paste(j))
+#}
+
+tr_pt_sum <- model_sum %>%
+  dplyr::select(bgc, training_pt_type, total_pts, folder) %>%
+  mutate(bgc = tolower(bgc)) %>%
+  distinct()
+    #<- rbind(model_sum, model_sum2)
+
+
+p1 <- ggplot(data = model_sum, aes( y = accuracy, x = total_pts, colour = folder)) + 
+  geom_point() + 
+  ylim(0,1) + 
+  ggtitle("ML accuracy per training pt type") + 
+  facet_grid(~bgc, scales = "free_x")
+
+
+p2 <- ggplot(data = model_sum, aes( y = spec, x = sens, colour = training_pt_type)) +
+  geom_point() + 
+  ylim(0,1) + 
+  ggtitle("Specificity and sensitivity per training pt type") +
+  facet_grid(~bgc, scales = "free_x")
+
+```
+
+```{r echo = FALSE, fig.height=5, fig.width=10}
+p1
+p2
+
+```
+
+## 2: Internal Map accuracy
+
+Comparison of map accuracy (internal bootstrap method). Average accuracy (per site) for all forested bgcs includeded is presented for Primary calls (). 
+
+```{r, echo = FALSE}
+
+map_data <- list.files(file.path(out_dir, cat), recursive = TRUE, pattern = "map_summary.RData", full.names = TRUE)
+
+#map_data_all <- list.files(file.path(out_dir, cat2), recursive = TRUE, pattern = "map_summary.RData", full.names = TRUE)
+#map_data <- map_data[7:9]
+
+map_sum <- foreach(j = map_data, .combine = rbind) %do% {
+    #print(j)
+    #j = map_data[1]
+  
+    file = load(j)
+    bsRes_all
+    #if(any(names(bsRes_long) %in% "bgc")) {
+    #bsRes_long <- bsRes_long %>%
+    #  select(-bgc)
+    #bsRes_long 
+    #} else 
+    #bsRes_long
+    
+} 
+
+map_sum <- map_sum %>%
+  mutate(bgc = gsub("_[[:digit:]].*","", It))
+
+# map_sum <- foreach(j = map_data_all, .combine = rbind) %do% {
+#     #print(j)
+#     file = load(j)
+#     bsRes_long
+# } 
+# 
+# map_sum <- bind_rows(map_sum, map_sum1)
+# 
+# # add the total number of points to each 
+# 
+# trDat_no <- model_sum %>%
+#   dplyr::select(bgc, training_pt_type, total_pts) %>%
+#   distinct()
+
+
+```
+
+
+```{r echo = FALSE}
+#read in the totals from detailed dataset 
+
+map_detail <- list.files(file.path(out_dir, cat), recursive = TRUE, pattern = "map_details.RData", full.names = TRUE)
+
+
+map_detail <- foreach(j = map_detail, .combine = rbind) %do% {
+    #print(j)
+    #j = map_data[1]
+  
+    file = load(j)
+    bsRes_long
+    #if(any(names(bsRes_long) %in% "bgc")) {
+    #bsRes_long <- bsRes_long %>%
+    #  select(-bgc)
+    #bsRes_long 
+    #} else 
+    #bsRes_long
+    
+} 
+
+map_detail <- map_detail %>%
+  mutate(bgc = gsub("_[[:digit:]].*","", tolower(It)))
+
+map_totals <- map_detail %>%
+  group_by(training_pt_type, bgc)%>%
+  summarise(trans_sum = sum(trans.total),
+            prime_sum = sum(spat_p)) %>%
+  rowwise() %>%
+  mutate(acc_p = prime_sum/trans_sum *100) 
+
+map_totals <- map_totals %>%
+  left_join(tr_pt_sum)
+
+
+```
+
+
+```{r, echo = FALSE, fig.height=5, fig.width=10}
+
+# generate average accuracy per site for each type plotted by total number of training points 
+p5 <- ggplot(data = map_totals, aes(y = acc_p, x = total_pts,
+                    colour = training_pt_type)) + 
+      #geom_boxplot()+
+      ylim(0,100) + 
+      facet_wrap(~bgc, scales = "free") +
+      ggtitle("Spatial Map Accuracy vs total training pts") + 
+      labs(x = "Training points", y = "Spatial Accuracy") + 
+      #geom_point() + 
+      geom_jitter(position=position_jitter(width=.1), size=1) + 
+      theme(axis.text.x = element_text(angle = 90))
+
+p5
+
+
+
+```
+
+
+## 3) Spatial Accuracy vs ML accuracy 
+
+Compare the ML metrics (accuracy and out-of-bag) with internal bootstrap spatial accuracy measures. Note inverse of out of bag (1 - out of bag) is shown for consistency, ie. higher values = more accurate.
+
+```{r, echo = FALSE, fig.height=5, fig.width=10}
+# combine both data sets
+model_acc <- model_sum %>%
+  dplyr::select(total_pts, samp_var, bgc, training_pt_type, accuracy, outofbag, sens, spec) %>%
+  mutate(bgc = tolower(bgc))%>%
+  distinct() %>%
+  left_join(map_totals)
+
+
+p6 <- ggplot(data = model_acc, aes(x = acc_p, y = accuracy, size = 3,
+                    colour = training_pt_type, shape = training_pt_type)) + 
+      #geom_boxplot()+
+      ylim(0,1) + 
+      xlim(0,100) + 
+      facet_wrap(~bgc) + 
+      ggtitle("ML accuracy vs Spatial Map Accuracy") + 
+      labs(x = "Map accuracy", y = "ML accuracy") + 
+      geom_jitter(position=position_jitter(width=.1), size=1) + 
+      theme(axis.text.x = element_text(angle = 90))
+
+p6
+
+
+# out of bag accuracy 
+
+p7 <- ggplot(data = model_acc, aes(x = acc_p, y = 1-outofbag,
+                    colour = training_pt_type)) + 
+      #geom_boxplot()+
+      ylim(0,1) + 
+      xlim(0,100) + 
+      facet_wrap(~bgc) + 
+      ggtitle("ML accuracy vs Spatial Map Accuracy") + 
+      labs(x = "Map accuracy", y = "ML inverse outofbag") + 
+      geom_jitter(position=position_jitter(width=.1), size=1) + 
+      theme(axis.text.x = element_text(angle = 90))
+
+p7
+
+```
+
+
+
+
+
+
+

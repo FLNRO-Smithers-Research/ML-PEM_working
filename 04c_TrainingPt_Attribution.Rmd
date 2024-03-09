@@ -1,0 +1,248 @@
+---
+title: "Atribute and prepare training data for modelling"
+date: "10/15/2020"
+output: html_document
+---
+
+```{r global_options, include=FALSE }
+require(knitr)
+```
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(raster)
+library(fasterize)
+library(sf)
+library(tools)
+library(stringr)
+#library(lwgeom)
+library(dplyr)
+library(foreach)
+library(scales)
+library(terra)
+library(data.table)
+#install.packages('terra', repos='https://rspatial.r-universe.dev')
+```
+
+
+## 1. Set up folder structure
+
+```{r set up folder structure }
+
+#AOI <- "Deception"
+#AOI <- "BoundaryTSA"
+#AOI <- "EagleHills"
+AOI <- "DateCreek"
+#AOI <- "Baboon"
+#AOI <- "Buck"
+#AOI <- "OldFort"
+#AOI <- "Wetzinkwa"
+#AOI <- "KIC_SE"
+
+#AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+AOI_dir <- file.path(paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+#cov_dir <- "D:/PEM/5m/"
+s1_dir <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "training_pts")
+#s1_dir <- "./inputs/"
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+# # if stage 2 is also so be used: 
+# s2_dir <- file.path(AOI_dir, "2_sample_design", "stage2_StudyDesign", "training_pts")
+#   
+# points_dir <- file.path(AOI_dir, "2_sample_design", "stage2_point_data", "training_pts")
+
+# all stages
+output_cleaned_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData", "clean")
+
+final_path  <- file.path(AOI_dir, "1_map_inputs", "trainingData")
+
+if(!dir.exists(output_cleaned_dir)) dir.create(output_cleaned_dir, recursive = TRUE)
+```
+
+
+```{r Functions}
+source(here::here('_functions', 'extend_lines.R'))
+source(here::here('_functions', 'make_lines.R'))
+source(here::here('_functions', 'transect_sample.R'))
+source(here::here('_functions', 'multiline_to_line.R'))
+
+```
+
+
+```{r}
+#Read in the processed transect data
+
+stype = "s1" # define if this is S1 or S2
+
+if(stype == "s1"){
+
+processed_transects <- st_read(
+  file.path(s1_dir, "proc_s1_transects.gpkg")) %>% 
+  mutate(mapunit12 = paste0(mapunit1,"/", mapunit2),
+         mapunit12 = gsub("/NA","",mapunit12)) %>%
+  dplyr::select(-c("X","Y"))
+
+transect_layout_buf <- st_read(file.path (s1_dir, "transect_layout_s1.gpkg")) %>%
+  st_buffer(10) 
+
+} else {
+##s2:
+
+processed_transects <- st_read(
+  file.path(s2_dir, "proc_s2_transects.gpkg")) %>%
+  mutate(mapunit12 = paste0(mapunit1,"/", mapunit2),
+         mapunit12 = gsub("/NA","",mapunit12))
+
+transect_layout_buf <- st_read(file.path (s2_dir, "transect_layout_s2.gpkg")) %>%
+ st_buffer(10)
+
+} 
+
+```
+
+
+Option 1: Extract points based on the base raster to be used in modelling
+
+```{r convert data to raster}
+# convert the vector data to raster for sampling. Build key which retains the primary and secondary call 
+res <- 5
+res_folder <- paste0(res, "m")
+
+raster_template <- raster(list.files(file.path(cov_dir, res_folder), pattern = "template.tif", full.names = TRUE))
+
+if("ID" %in% colnames(processed_transects) == FALSE){
+  print ("adding ID column")
+  processed_transects <- processed_transects %>% 
+    mutate(ID = seq(1, length(processed_transects$order), 1))
+}
+ 
+
+processed_transects_id <- st_drop_geometry(processed_transects)
+
+lBuff <- processed_transects %>% 
+    sf::st_buffer(., dist = 2.5, endCapStyle = "FLAT", joinStyle = "MITRE") %>%
+    sf::st_cast(.,"MULTIPOLYGON")
+
+rastAll <- fasterize(lBuff, raster_template, field = "ID")
+
+raster_points_xy <- as.data.frame(rasterToPoints(rastAll)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 3005) %>%
+  merge(processed_transects_id, by.x = names(rastAll), by.y = "ID") 
+
+# format transect id names 
+
+if(stype == "s1"){
+raster_points_xy <- format_transect(raster_points_xy) }
+
+st_write(raster_points_xy, file.path(output_cleaned_dir,  
+                                paste0(stype, "_transect_all_pts.gpkg")), 
+                        delete_layer = TRUE)
+
+
+```
+
+
+## Add neighbouring cells and attributes 
+
+Load each file and extract the raster values at each point. All attributed files can be found in the clean folder ready for processing
+
+```{r}
+
+res_folder = "5m"
+
+unattributed_files <- list.files(output_cleaned_dir, pattern = ".gpkg$", full.names = TRUE)
+#unattributed_files <- unattributed_files[4:8]
+
+testrast <- terra::rast(file.path(cov_dir, res_folder,"template.tif"))
+
+cov_dat <- rast(list.files(file.path(cov_dir, res_folder), pattern = ".tif$", 
+                             full.names = TRUE))
+
+# # test if all covars are matching
+
+# cov_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", 
+#                              full.names = TRUE)
+# 
+# temp_ex = extent(testrast)
+# 
+# for(i in 1:length(cov_list)){
+# #  i = 1
+#   rn <- cov_list[i]
+#   #print(rn)
+#   r1 <- raster(rn)
+#   if(extent(r1) == temp_ex) {
+#     "matching"
+#   } else {
+#     print(rn)
+#     print("notmatching")
+#   }
+# }
+
+  
+att_folder <- file.path(final_path, paste0("att_",res_folder))
+if(!dir.exists(att_folder)) dir.create(att_folder, recursive = TRUE)
+
+# cycle through all the different types of points
+
+
+for(i in unattributed_files) {
+  
+ i = unattributed_files[1]
+  model_id <- gsub(".gpkg$", "_att.gpkg", basename(i))
+  
+  # Extra neighbouring pixals for all points
+  dat_pts <- st_read(i, quiet = TRUE) 
+  dat_pts$ptsID <- 1:nrow(dat_pts)
+  dat_atts <- as.data.table(st_drop_geometry(dat_pts))
+  pts <- vect(dat_pts)
+  testrast <- terra::rast(file.path(cov_dir,res_folder,"template.tif"))
+  cellNums <- cells(testrast, pts)
+  cell_lookup <- data.table(ID = pts$ptsID,cell = cellNums)
+  
+  adjCells <- adjacent(testrast,cells = cellNums[,2],directions = "queen",include = T)
+  adjCells <- as.data.table(adjCells)
+  setnames(adjCells, c("Orig",paste("Adj",1:8,sep = "")))
+  adjCells[,ID := 1:nrow(adjCells)]
+  adjLong <- melt(adjCells, id.vars = "ID", value.name = "CellNum", variable.name = "Position")
+  setorder(adjLong,"ID","Position")
+  values(testrast) <- 1:ncell(testrast)
+  cellnums <- 1:ncell(testrast)
+  testrast[!cellnums %in% adjLong$CellNum] <- NA
+  pts <- as.points(testrast,values = T, na.rm = T)
+  
+
+  pts2 <- st_as_sf(pts)
+  pts2 <- as.data.table(pts2)
+  setnames(pts2,c("CellNum","geometry"))
+  allPts <- merge(pts2, adjLong, by = "CellNum", all = T)
+  #allPts[cell_lookup, ptID := i.ID, on = c(CellNum = "cell.cell")]
+  allPts <- merge(allPts, dat_atts, by.x = "ID",by.y = "ptsID",all = T)
+  allPts <- vect(st_as_sf(allPts))
+  #st_write(st_as_sf(allPts),"s1_clean_adjacent.gpkg")
+ 
+  # add attributes for all covars
+  atts <- terra::extract(cov_dat, allPts)
+  
+  att_all <- cbind(st_as_sf(allPts), atts)
+  
+  # TO DO 
+  # need to remove the id and rename id for each point?
+  
+  # fix names abreviuation problem
+  names(att_all)
+  new_names <- gsub(".tif", "", list.files(file.path(cov_dir, res_folder), pattern = ".tif$"))
+  if(names(att_all)) 
+  
+  #st_write(att_all,"s1_clean_neighbours_allatts.gpkg") ###final dataset
+  
+  st_write(att_all, dsn = file.path(final_path, paste0("att_",res_folder), model_id), delete_layer = TRUE)
+  
+} 
+
+
+```
+

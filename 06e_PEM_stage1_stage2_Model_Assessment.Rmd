@@ -1,0 +1,578 @@
+---
+title: "Assess methods for generating stage 2 data"
+Script author: "Gen Perkins"
+date: "04/08/2021"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+```{r global_options, include=FALSE }
+require(knitr)
+
+```
+
+```{r setup, include=FALSE}
+
+library(data.table)
+library(scales)
+library(caret)
+library(sf)
+library(ranger)
+library(tidyverse)
+library(fasterize)
+library(stringr)
+library(dplyr)
+library(raster)
+library(readxl)
+library(foreach)
+library(tidymodels)
+library(themis)
+library(vip)
+library(stringi)
+library(R.utils)
+
+#devtools::install_github("tidymodels/tune")
+#devtools::install_github("tidymodels/parsnip")
+
+```
+
+# Introduction
+
+This script compares model outputs using stage 1 sample design (landscape level layout) with models incorporating both stage 1 and stage 2 sample data. A variety of methods were used to create stage 2 samples. These included method 1) entropy method 2) ensemble modeling uncertainty or 3) purposeful data collected in a nonstandard collection method. 
+
+This test will focus on assessing the merit of standardizes stage 2 collection, based on generating maps from stage 1 data and targeting areas in which the uncertinty is high (entropy) or where ensemble method was used to in stage 1 with the areas of highest uncertainty targeted for further data collection. 
+
+The areas of interest tested included 
+1) Deception (ensemble and entropy methods)
+2) Boundary (method 1 and method 2)
+
+
+This script uses training point samples collected from Stage 1 transects and other point data collected.
+
+### Deception 
+
+Deception (Stage 1 transects collected per variant ( ) )
+S2 - entropy (25 triangles (note not pairs) - SBSmc2)
+S2 - ensemble (7 triangles (- SBSmc2))
+S2 - purposeful (8 triangles (various sizes - ESSFmc), 4 triangles (various sizes - SBSmc2))
+
+For this test we will be using the SBSmc2 only 
+
+In Aleza lake study area, stage 2 was sampled using the entropy surface, generated in script 5a, to target areas of uncertainty from the map. A threshold of 0.4 was set for inclusion based on a histogram of entropy values. 
+
+For initial testing at Deception we employed that same method as used in Aleza with the following exeptions:
+
+- limit sampling to highest 25% entropy areas ( >0.75).
+- sampling of clhs is based on the probability layers (ie environmental space of each of the predicted probability surface for the classes within the subzone, ie prob SbSmc2/01, SBSmc2/02, etc.)
+
+
+
+
+### Boundary  
+
+For this test we will be using the IDFdm1 and MDdm1 variants
+
+Stage 1 samples : 
+IDFdm1 - 42 triangles
+MSDm1 - 44 trianagles
+
+S2 - entropy (12 x IDFdm1) and 10 x MSdm1 
+S2 - ensemble (14 x IDFdm1) and 7 x MSdm1)
+
+(not including field data collected in 2021)
+
+
+
+
+
+
+Model process: 
+Note as this data does not all include slices we will use a standard CV approach in which we split into training and testing data - stratified by mapunit. 
+
+
+
+
+Prepare directories
+
+```{r session setup, tidy = TRUE, warning=FALSE, eval = FALSE}
+
+#AOI <- "Deception"
+AOI <- "BoundaryTSA"
+
+# set up file structure
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+input_pnts_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+# read in temp functions
+source(here::here('_functions', 'model_gen_tidy.R'))
+source(here::here('_functions', 'acc_metrix_simpleCV.R')) # note this is the function for simple CV and not the slices CV model
+
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+# #read in the fuzzy index
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic.csv")) %>%
+  dplyr::select(c(target, Pred, fVal))
+  
+fMat <- data.table(fMat)
+
+# read in model parameters 
+model_param <- file.path(AOI_dir, "_MapUnitLegend", "models.xlsx")
+
+# set up model parameters:  
+mparam <- read_xlsx(model_param, "models") %>% filter(to_run == 1)
+map_res <- mparam$resolution
+data_res <- paste0("att_", map_res, "m")
+mname <- paste0(mparam$model_name)
+mrep <- mparam$model_rep
+
+# check which catergory of model to be produced
+mtype <- case_when(
+  str_detect(mname, "for_nf")  ~ "forest_non_forest",
+  str_detect(mname, "nf_") ~ "non_forest",
+  str_detect(mname, "fore") ~ "forest"
+)
+
+# get covariates
+mcov <- read_xlsx(model_param, "covariates", skip = 2) %>%
+  filter(!!sym(mparam$covariates) == 1) %>%
+  dplyr::select(covariate)
+
+# get training point sets
+mtpt <- read_xlsx(model_param, "training_pts", skip = 2) %>%
+  filter(!!sym(mparam$training_pts) == 1) %>%
+  dplyr::select(tp_code)%>%
+  pull
+
+# get the map unit level 
+mmu <- read_xlsx(model_param, "map_unit", skip = 2) %>%
+   filter(!!sym(mparam$map_unit) == 1) %>%
+  dplyr::select(legend_column)%>%
+  pull
+
+mmu <- case_when(
+  mmu == "column_mu" ~ "MapUnit", 
+  mmu == "column_ss" ~ "SiteSeries",
+  mmu == "column_ass" ~ "Association",
+  mmu == "column_cls" ~ "Class",
+  mmu == "column_grp" ~ "Group",
+  mmu == "column_typ" ~ "Type"
+)
+
+# set up outfolder: 
+
+if(!dir.exists(file.path(out_dir, mtype))){dir.create(file.path(out_dir, mtype))} 
+
+out_dir <- file.path(out_dir, mtype, mname, mrep) 
+
+# set up model folder: 
+if(!dir.exists(out_dir)){
+  dir.create(out_dir)} else { 
+    print ("folder already exists for this model name - are you sure you want to overwrite the results?")}
+
+```
+
+
+##Create raster stack of spatial layers
+
+```{r create raster stack of spatial variables, include = FALSE, eval = FALSE}
+
+res_folder <- paste0(map_res, "m")
+
+rast_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", full.names = TRUE)
+
+# filter based on covariate for model param
+rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in% tolower(mcov$covariate)]
+
+mcols <- gsub(".tif","", tolower(basename(rast_list)))
+
+# load bgc layer
+
+if(AOI == "BoundaryTSA"){
+bec_shp <- st_read(file.path(shapes_dir, "bec.gpkg"), quiet = TRUE)
+
+bec_shp <- bec_shp %>% dplyr::rename(MAP_LABEL = BGC_LABEL) %>%
+  mutate(MAP_LABEL = str_replace_all(string=MAP_LABEL, pattern=" ", repl=""))
+
+} else {
+bec_shp <- st_read(file.path(shapes_dir, "bec_edited.gpkg"), quiet = TRUE)
+}
+
+
+```
+
+
+##Prepare training and testing datasets for the model
+
+Using the point data generated in various forms from the 04a script, iteratively read in those points and create and save models. Model data is saved in a spreadsheet so that the spreadsheet can be filtered later to find the model with the best accuracy metrics. If the model is broken down by subzone and you have lots of different input datasets, this could take a while!
+
+The random forest model is created using the training data set from above. Repeated cross validation is used to generate model metrics, though remember this is using the training set. We will evaluate our own metrics using the held back test set that was created above.
+
+The model is able to be fine tuned quite nicely. Certain preprocessing parameters are included here to limit the amount of data that is used in the final model, including a correlation cutoff (remove covariates that are highly correlated), nero-zero variance detection (removes covariates that have 0 or close to 0 variance), centering and scaling of the data, and more, though these are the more common setup parameters. Having this prevents actual preprocessing to occur and allows for much more efficient processing.
+
+Using the test dataset, the model is evaluated using the held back points. A confusion matrix is generated and then saved to the model output folder.
+
+
+```{r read in datasets, include = FALSE, eval = FALSE}
+# read in sets of data 
+   infiles <- mtpt
+        
+   # read in first file 
+   fileoi <- mtpt[1]
+   indata <- list.files(file.path(input_pnts_dir, data_res), paste0(fileoi,"_att.*.gpkg$"), full.names = TRUE)
+   tpts <- st_read(indata, quiet = TRUE) 
+   
+   otherfiles <- mtpt[-1]
+   
+   for (filei in otherfiles ){
+      #filei <- otherfiles[3]
+     
+     ind <- list.files(file.path(input_pnts_dir, data_res), paste0(filei,"_att.*.gpkg$"), full.names = TRUE)
+     if(length(ind>1)) {
+       ind <- ind[grep(paste0("^",filei,"_att.gpkg$"), basename(ind))]
+     }
+      file_read <- st_read(ind, quiet = TRUE) 
+      tpts <- bind_rows(tpts, file_read) 
+     
+   }
+ 
+  
+#  MU_count <- tpts %>% dplyr::count(mapunit1)
+table(tpts$mapunit1)
+
+# match to the key and filter for forest and non_forest points
+
+subzones <- unique(bec_shp$MAP_LABEL) 
+
+tpts  <- tpts %>%
+  cbind(st_coordinates(.)) %>%
+  mutate(fnf = ifelse(grepl(paste0(subzones, collapse = "|"), mapunit1), "forest", "non_forest")) %>%
+  st_join(st_transform(bec_shp[, "MAP_LABEL"], st_crs(.)), join = st_nearest_feature) %>% 
+  st_drop_geometry() %>% 
+  dplyr::select(fnf, everything()) %>% 
+  dplyr::rename(bgc_cat = MAP_LABEL) %>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+
+# filter for forest or non_forest points as required
+if(mtype %in% c("forest", "non_forest")) {
+   tpts <- tpts %>% filter(fnf == mtype)
+} 
+
+ tpts1 <- tpts %>%
+    dplyr::mutate(target = as.factor(mapunit1),
+                          target2 = as.factor(mapunit2)) %>%
+   mutate(tid = gsub('_[^_]*$', '', transect_id))
+
+ # boundary - add the type of data collected
+ tpts1 <- tpts1 %>%
+    mutate(trans_type = ifelse(str_detect(transect_id, "_m1_"), "s2_entropy", 
+                              ifelse(str_detect(transect_id, "_m2_"), "s2_ensemble", "s1")))
+ 
+
+# subset columns
+ 
+tpts <- tpts1 %>%
+    dplyr::select(target, target2, tid, contains("trans_type"), bgc_cat, any_of(mcols))
+
+mpts = tpts %>% droplevels() 
+  
+```
+
+Select the bgc of interest and generate data sets for each of the catergories to test. Note Deception is model no 78
+
+```{r run model, include = FALSE, eval = FALSE}
+
+## run model for specific bgcs (Deception - SBSmc2)
+if(AOI == "Deception"){
+  
+  zones <- "SBSmc2"
+
+  pts_subzone <- mpts %>%
+      filter(str_detect(target, as.character(paste0(zones, "_")))) %>%
+      droplevels()
+ 
+# Split data into different data sets 
+  # s1 only 
+  # s1 + ensemble
+  # s1 + entropy
+  # s1 + purposeful pts 
+  # s1 + all s2
+  
+  # s1
+  s1_pts <- pts_subzone %>% filter(is.na(trans_type))
+  write.csv(s1_pts, file = paste(paste0(out_dir), "s1_training_data.csv",sep = "/"))
+  
+  # s1 + entropy 
+  s1_S2_ent <- pts_subzone %>%
+    filter(trans_type == "s2_entropy") %>%
+    rbind(s1_pts)
+  write.csv(s1_S2_ent, file = paste(paste0(out_dir), "s1_S2_entropy_data.csv",sep = "/"))
+  
+  # s1 + ensemble
+  s1_S2_ensem <- pts_subzone %>%
+    filter(trans_type == "s2_ensemble") %>%
+    rbind(s1_pts)
+   write.csv(s1_S2_ensem, file = paste(paste0(out_dir), "s1_S2_ensemble_data.csv",sep = "/"))
+  
+   # s1 + purpose
+  s1_S2_purpose <- pts_subzone %>%
+    filter(trans_type == "s2_purpose") %>%
+    rbind(s1_pts)
+  write.csv(s1_S2_purpose , file = paste(paste0(out_dir), "s1_S2_purpose_data.csv",sep = "/"))
+   
+  # s1 + all s2
+   write.csv(pts_subzone, file = paste(paste0(out_dir), "s1_S2_all_data.csv",sep = "/"))
+   
+} else {
+  
+  bound_pts <- mpts %>%
+    filter(bgc_cat %in% c("IDFdm1", "MSDm1"))
+  
+   # s1
+  s1_pts <-  bound_pts  %>% filter(trans_type == "s1")
+  write.csv(s1_pts, file = paste(paste0(out_dir), "s1_training_data.csv",sep = "/"))
+  
+  # s1 + entropy 
+  s1_S2_ent <- bound_pts %>% filter(trans_type %in% c("s1", "s2_entropy") )
+  write.csv(s1_S2_ent, file = paste(paste0(out_dir), "s1_S2_entropy_data.csv",sep = "/"))
+  
+  # s1 + ensemble
+  s1_S2_ensem <- bound_pts %>% filter(trans_type %in% c("s1", "s2_ensemble"))
+  write.csv(s1_S2_ensem, file = paste(paste0(out_dir), "s1_S2_ensemble_data.csv",sep = "/"))
+  
+  # s1 + all s2
+   write.csv(bound_pts, file = paste(paste0(out_dir), "s1_S2_all_data.csv",sep = "/"))
+
+}
+   
+```
+  
+  
+
+# Read in the data set of inerest and run the model 
+
+For each different model run you will need to adjust the file to read in and the "name type" to ensure the output file matches. 
+
+  s1_training_data, 
+  s1_S2_entropy_data.csv
+  s1_S2_ensemble_data
+  s1_S2_purpose_data.csv"
+  s1_S2_all_data.csv"
+  
+```{r run the different stage 2 data sets through the model, eval = FALSE, incldue = FALSE}
+
+#file_name <- "s1_S2_purpose_data.csv"      ## Deception only 
+
+#file_name <- "s1_training_data.csv"
+#file_name <- "s1_S2_entropy_data.csv"
+#file_name <- "s1_S2_ensemble_data.csv"
+file_name <- "s1_S2_all_data.csv"
+
+# for multiple bgcs (Boundary)
+
+#bgc <- "IDFdm1"
+bgc <- "MSdm1"
+
+pts_subzone <- read_csv(file.path(out_dir, file_name)) %>%
+  dplyr::select(-X1) %>%
+  filter(bgc_cat == bgc)
+
+file_out <- gsub("_data.csv", paste0("_",bgc,"_acc_results.csv"), file_name)
+
+## for a single bgc - 
+#file_out <- gsub("_data.csv", "_acc_results.csv", file_name)
+#pts_subzone <- read_csv(file.path(out_dir, file_name)) %>%
+#  dplyr::select(-X1)
+
+
+
+#covars <- pts_subzone %>%
+#      dplyr::select(-c("target", "target2", "tid", "bgc_cat", "trans_type")) 
+#covars <- covars[complete.cases(covars[ ,1:length(covars)]),]
+     
+trDat <- pts_subzone  %>%
+    dplyr::select(-c("trans_type", "bgc_cat", "trans_type"))
+ 
+trDat <- trDat[complete.cases(trDat[ , 4:length(trDat)]),]
+
+### split into train and test based on simple splie
+  
+data_split <- initial_split(trDat, prop = .8, strata = target) 
+
+BGC_train <- training(data_split) %>%
+     filter(is.na(target2)) # train only on pure calls
+  BGC_train <- BGC_train %>%
+    dplyr::select(-target2) %>%
+    droplevels()
+  
+  # test set
+  BGC_test <- testing(data_split)
+  BGC_test_all <- BGC_test # keep for the target2 alt call. 
+  BGC_test <- BGC_test %>%
+    dplyr::select(-target2)
+  
+  ############### Define test recipes and workflow ###################
+  null_recipe <-
+    recipe(target ~ ., data = BGC_train) %>%
+    update_role(tid, new_role = "id variable")  #%>%
+    #step_downsample(target, under_ratio = 25) %>%
+    #step_smote(target, over_ratio = 1, neighbors = 2)    #prep()
+  
+  set.seed(345)
+  pem_cvfold <- group_vfold_cv(
+    BGC_train,
+    v = 10,
+    repeats = 5,
+    group = tid,
+    strata = target
+  )
+
+  randf_spec <- rand_forest(mtry = 10, min_n = 2, trees = 200) %>% 
+    set_mode("classification") %>%
+    set_engine("ranger", importance = "permutation", verbose = FALSE) 
+    
+  ## trees = 200 is approximately good metrics improve by 1% going 100 -> 200 but go down at higher ntrees
+  
+  pem_workflow <- workflow() %>%
+    add_recipe(null_recipe) %>%
+    add_model(randf_spec)
+  
+  #######################################################
+  
+  set.seed(4556)
+  #doParallel::registerDoParallel() 
+  # note when smoting with fit_resample you cant use parrallel process or will cause error
+  
+  cv_results <- fit_resamples(pem_workflow,
+                              resamples = pem_cvfold,
+                              control = control_resamples(save_pred = TRUE))
+  
+  # collect metrics
+  cv_metrics <- cv_results  %>% collect_metrics(summarize = FALSE)
+  cv_metrics_sum <- cv_results %>% collect_metrics()
+  
+  # collect predictions
+  cv_pred <- cv_results %>% collect_predictions(summarize = FALSE)
+  
+  cv_pred_sum <- cv_results %>% collect_predictions(summarize = TRUE)
+  cv_pred_sum <- cv_pred_sum %>% dplyr::select(target, .pred_class)
+
+  ## CV model accuracy metrics
+  cv_pred_sum <- as.data.frame(cv_pred_sum)
+  
+  cv_acc <- acc_metrix_simpleCV(cv_pred_sum) %>%
+    mutate(acc_type = "cv_estimate")
+  
+ ## build final train model and predict test data and compare acc_metrix to cv results
+
+  PEM_rf1 <- fit(pem_workflow, BGC_train)
+  
+  final_fit <- pull_workflow_fit(PEM_rf1) 
+
+  ######### Predict Test
+  test_target <- BGC_test_all %>% dplyr::select(target)
+
+  test.pred <-  predict(PEM_rf1, BGC_test)
+  test.pred <- cbind(test_target, test.pred) %>% 
+    mutate_if(is.character, as.factor)
+  
+  ###harmonize levels
+  targ.lev <- levels(test.pred$target)
+  pred.lev <- levels(test.pred$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  test.pred$target <- factor(test.pred$target, levels = levs)
+  test.pred$.pred_class <- factor(test.pred$.pred_class, levels = levs)
+  
+  # output test predictions
+  #test.pred.out <- test.pred 
+     
+  test.acc <- acc_metrix_simpleCV(test.pred) %>%
+       mutate(acc_type = "test_estimate")
+  
+  ## compare cv stats to test stats
+  acc.compare <- bind_rows(cv_acc, test.acc)
+
+write.csv(acc.compare, file = paste(out_dir, file_out,sep = "/"))
+
+
+```
+ # read in the accuracy data files for Deception 
+
+```{r}
+
+AOI <- "Deception"
+
+out_dir <- "./Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/78"
+acc_results_list <- list.files(file.path(out_dir), pattern = "_acc_results.csv", full.names = TRUE)
+
+
+results_sum <- foreach(j = acc_results_list, .combine = rbind) %do% {
+     out <- read.csv(j)
+     out$file_name = basename(j)
+     out
+ } 
+
+
+
+dplot <- ggplot(data = results_sum , aes( y = accuracy, x = acc_type, colour = file_name)) +
+  geom_point() #+
+  #facet_wrap(~bgc, scales = "free") + 
+  #ylim(0,1)
+
+
+# Note there is a big difference between the test and cv metrics which makes me suspicious that something else is going on here? Perhaps the id grouping is causing some issues? Somthing to do with the amount of data ? This varies per method? 
+  
+```
+
+
+# read in the Boundary data 
+```{r}
+
+AOI <- "BoundaryTSA"
+
+out_dir <- "./BoundaryTSA_AOI/3_maps_analysis/models/forest/fore_mu_bgc/6"
+acc_results_list <- list.files(file.path(out_dir), pattern = "_acc_results.csv", full.names = TRUE)
+
+
+results_sum <- foreach(j = acc_results_list, .combine = rbind) %do% {
+     out <- read.csv(j)
+     out$file_name = basename(j)
+     out
+ } 
+
+
+results_sum  <- results_sum %>%
+  mutate(file_name_short = gsub('_acc_results.csv', '', file_name)) %>%
+  mutate(data_type = gsub('_[^_]*$', '', file_name_short)) %>%
+  mutate(bgc = gsub(".*_", "", file_name_short))
+
+bplot <- ggplot(data = results_sum , aes( y = accuracy, x = acc_type, colour = data_type)) +
+  geom_point() +
+  facet_wrap(~bgc) 
+  #ylim(0,1)
+bplot
+
+
+bbplot <- ggplot(data = results_sum , aes( y = accuracy, x = acc_type, colour = data_type)) +
+  geom_bar(stat = "identity", aes(fill = data_type), position = "dodge") +
+  facet_wrap(~bgc, scales = "free") 
+  #ylim(0,1)
+bbplot
+
+```
+
+```{r}
+
+#Compare other metrics 
+
+
+```
+

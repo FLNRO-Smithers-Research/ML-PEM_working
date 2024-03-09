@@ -1,0 +1,896 @@
+---
+title: "PEM_ColourThemeing"
+author: "Kara Schaefer, Gen Perkins"
+date: "11/08/2019"
+
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+<!--
+Copyright 2020 Province of British Columbia
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and limitations under the License.
+-->
+
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+library(readr)
+library(ggplot2)
+library(XML)
+library(colortools)
+library(sf)
+library(lwgeom)
+library(sp)
+library(dplyr)
+library(bcdata)
+library(bcmaps)
+library(readr)
+
+
+```
+##Script to assign colours to map units in a PEM based on complementary colours.
+The user will read in a Map Unit Legend and this script will assign and write colours back to the legend files.  
+The zonal site series colour will match the colours used for the BGC subzone variant
+Then complementary, adjacent, or analagous colours will be selected based on edatopic position
+Special colours/patterns will be assigned to non-forested classes.
+Some links to script descriptions: 
+https://www.datanovia.com/en/blog/how-to-create-beautiful-color-palettes-in-r/
+
+Online colour tool
+http://colorschemedesigner.com/csd-3.5/
+
+
+```{r import BGC units and map_keys, tidy = TRUE, warning=FALSE}
+
+AOI <- "Deception"
+AOI_dir <- file.path(paste0(AOI,"_AOI"))
+map_unit_legend <- file.path(AOI_dir, "_MapUnitLegend")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models", "forest","forest_mu_all", "77")
+
+qml_out <- file.path(out_dir, "map")
+
+# read in reference files 
+map_key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+
+# read in raster file and map key 
+map_title = "response_names"
+
+indata <- read_csv(file.path(out_dir, paste0(map_title, ".csv"))) %>%
+  rename(category = x,
+         integercode = X1)
+
+# prepare the edatopic grid reference if needed 
+
+if(file.exists(file.path(map_unit_legend, "edatopic_reference.csv"))) {
+  print("reading existing edatopic_reference")
+  
+  edatopic_reference = read.csv(file.path(map_unit_legend, 
+                                          "edatopic_reference.csv"), 
+                                stringsAsFactors = FALSE)
+  SUBZONE_COLOURS_KEY = read.csv(file.path(map_unit_legend, 
+                                           "subzone_colour_key.csv"), 
+                                 stringsAsFactors = FALSE)
+  
+} else {
+  print("generating edatopic reference")
+  
+  if(file.exists(file.path(map_unit_legend, "Edatopic_v11_19.csv"))) {
+    
+    
+    
+    edatopic_reference <- read.csv(file.path(map_unit_legend, "Edatopic_v11_19.csv"))
+    
+    file_name <- "WNA_SubzoneColours"
+    
+    document <- xmlParse(file = file.path(map_unit_legend, paste(file_name, ".xml", sep = "")))
+    category_nodes <- getNodeSet(document, "//category")
+    BGC_zone <- lapply(category_nodes, xmlGetAttr, "value")
+    xml_id <- lapply(category_nodes, xmlGetAttr, "symbol")
+    BGC_with_xml_id_only <- data.frame(BGC_zone = unlist(BGC_zone), xml_id = unlist(xml_id))
+    
+    symbol_nodes <- getNodeSet(document, "//symbols//symbol[@name]")
+    symbol_id <- sapply(symbol_nodes, xmlGetAttr, "name")
+    names(symbol_id) <- sapply(getNodeSet(document, '//symbols//symbol//prop[@k="color"]'), xmlGetAttr, "v")
+    
+    id_and_colour <- data.frame(id = symbol_id,
+                                cmyk_colour = names(symbol_id), stringsAsFactors = FALSE)
+    
+    BGCs_with_colours <- BGC_with_xml_id_only %>% 
+      left_join(id_and_colour, by = c("xml_id" = "id"))
+    
+    BGCs_with_colours <- BGCs_with_colours[, c("BGC_zone","cmyk_colour", "xml_id") ]
+    
+    
+    SUBZONE_COLOURS_KEY <- BGCs_with_colours %>% 
+      mutate(colour = sapply(
+        strsplit(BGCs_with_colours$cmyk_colour, ","),
+        function(x) rgb(x[1], x[2], x[3], maxColorValue = 255)),
+        classification = paste(BGC_zone, "/01", sep = "")) %>%
+      dplyr::select(classification, colour) %>%
+      rbind(c("ESSFmcw/101", "#6B0387"))    # manually add a purple for ESSFmcw, as it is missing
+    
+    
+    # manually add ESSFmcw edatopic information
+    ESSFmcw_edatopic <- data.frame(
+      "--",
+      "ESSFmcw",
+      c(rep("ESSFmcw/101", 4),
+        rep("ESSFmcw/102", 4),
+        rep("ESSFmcw/103", 5),
+        rep("ESSFmcw/110", 8),
+        rep("ESSFmcw/111", 4)),
+      c(c("B3", "B4", "C3", "C4"),
+        c("A1", "B1", "B2", "C2"),
+        c("A2", "A3", "A4", "B3", "B4"),
+        c("B5", "C5", "D3", "D4", "D5", "E3", "E4", "E5"),
+        c("B6", "C6", "D6", "E6")),
+      NA,
+      NA,
+      NA,
+      NA,
+      NA,
+      NA,
+      NA,
+      NA
+    )
+    
+    names(ESSFmcw_edatopic) <- colnames(edatopic_reference)
+    edatopic_reference <- rbind(edatopic_reference, ESSFmcw_edatopic)
+    write.csv(edatopic_reference, file.path(map_unit_legend, "edatopic_reference.csv"), row.names = 
+                FALSE)
+    write.csv(SUBZONE_COLOURS_KEY, file.path(map_unit_legend, "subzone_colour_key.csv"), row.names = FALSE)
+  } else {
+    print("Edatopic_v11_19.csv file not found in map_unit_legend directory")
+  }
+}
+
+
+#BGCs <- read.csv(file.path(map_unit_legend, "AllModelled_BGCs_v11.csv")) ### BGC RGB colour will be assigned here manually picked to match the BGC field maps
+#BGCs <- BGCs[!is.na(BGCs),]
+
+
+# alternative to use bc catalogue or another dataset with unique bgc 
+#bec_sf <- bec(class = "sf")
+#bec_sf <- bcdc_query_geodata("0d526b63-812b-444c-b227-418b6fcbbd44")%>%
+#      bcdata::select(c("BG_CODE")) %>% # Treed sites
+#      collect()
+
+#examples <- file.path(map_unit_legend, "example_map_keys")
+#map_title <- "/M57_map_key.csv"
+#indata <- read.csv(file.path(examples, map_title), stringsAsFactors = FALSE)
+
+# indata <- read.csv(file.path(examples, "/M28_map_key.csv"), stringsAsFactors = FALSE)
+# indata <- read.csv(file.path(examples, "/M37_map_key.csv"), stringsAsFactors = FALSE)
+#M42_example <- read.csv(file.path(examples, "/M42_map_key.csv"), stringsAsFactors = FALSE)
+#M55_example <- read.csv(file.path(examples, "/M55_map_key.csv"), stringsAsFactors = FALSE)
+
+
+# Set up colour tables for set non-forest and forest groups 
+
+# TO DO: 
+# Non-forest perhaps set up a pattern (not just a solid colour, hashes or lines) - colour by theme ie shades of blue for common classes 
+# ie Wf01 Wf02
+# Forest - contrasting (not theme shaded) - set up the manual 
+# see the arcmap set themeing for specific - ie wetlands. 
+
+nf_colour_table <- tribble( #nf = non-forest
+  ~classification, ~colour,
+  "LA",       "#0000cc",    # Lakes, bold blue
+  "RI",       "#0000cc",    # Rivers, bold blue
+  "Unknown",  "#808080"     # grey
+)
+
+id <- c(
+  paste0(toupper(letters[1:5]), 0),
+  paste0(toupper(letters[1:5]), 1),
+  paste0(toupper(letters[1:5]), 2),
+  paste0(toupper(letters[1:5]), 3),
+  paste0(toupper(letters[1:5]), 4),
+  paste0(toupper(letters[1:5]), 5),
+  paste0(toupper(letters[1:5]), 6),
+  paste0(toupper(letters[1:5]), 7)
+)
+
+position_value <- 1:40
+
+edatopic_position_values <- data.frame(id, position_value, stringsAsFactors = FALSE)
+
+imported_table_full <- indata %>% 
+  mutate(
+    category = ifelse(grepl("_", category), 
+                      sub("_", "/", category, perl = TRUE),
+                      category),
+    forest_non_forest = ifelse(
+      grepl("(?i)/[a-z]", category, perl = TRUE) | !grepl("/", category, perl = TRUE),
+      "non_forest",
+      "forest"),
+    category_mapped_for_colour = ifelse(
+      grepl("(?i)/[a-z]", category, perl = TRUE),
+      sub(".*/", "", category),
+      category),
+    category_mapped_for_colour = ifelse(
+      category_mapped_for_colour %in% c("Un", "Unk", "un", "?"),
+      "Unknown",
+      category_mapped_for_colour
+    ),
+    # Remove numeric values from non-forested types
+    # for example Wf01 becomes Wf
+    category_mapped_for_colour = ifelse(
+      grepl("non_forest", forest_non_forest, perl = TRUE),
+      ifelse(
+        grepl("[0-9]", category_mapped_for_colour, perl = TRUE),
+        sub("^[0-9 ,]+|[0-9 ,]+$", "", category_mapped_for_colour),
+        category_mapped_for_colour
+      ),
+      category_mapped_for_colour
+    ),
+    mapped_to = case_when(
+      grepl("(?i)unknown", category_mapped_for_colour, perl = TRUE) ~ "Unknown",
+      grepl("(?i)ag", category_mapped_for_colour, perl = TRUE) ~ "grassland",
+      grepl("(?i)am", category_mapped_for_colour, perl = TRUE) ~ "meadow",
+      grepl("(?i)es$", category_mapped_for_colour, perl = TRUE) ~ "estuarine_maybe",
+      grepl("(?i)fl", category_mapped_for_colour, perl = TRUE) ~ "flood_group",
+      grepl("(?i)ro", category_mapped_for_colour, perl = TRUE) ~ "rock_outcrop",
+      grepl("(?i)sc", category_mapped_for_colour, perl = TRUE) ~ "shrubland",
+      grepl("(?i)wa", category_mapped_for_colour, perl = TRUE) ~ "alpine_wetland",
+      grepl("(?i)wb", category_mapped_for_colour, perl = TRUE) ~ "bog",
+      grepl("(?i)wf", category_mapped_for_colour, perl = TRUE) ~ "fen",
+      grepl("(?i)wm", category_mapped_for_colour, perl = TRUE) ~ "marsh",
+      grepl("(?i)wun", category_mapped_for_colour, perl = TRUE) ~ "wu_n",
+      grepl("(?i)ww", category_mapped_for_colour, perl = TRUE) ~ "shallow_water",
+      grepl("(?i)xvh", category_mapped_for_colour, perl = TRUE) ~ "disclimax_avalanche_herb_meadow",
+      grepl("(?i)xvs", category_mapped_for_colour, perl = TRUE) ~ "disclimax_avalanche_shrub_thicket",
+      grepl("(?i)xvt", category_mapped_for_colour, perl = TRUE) ~ "disclimax_avalanche_treed"
+    ),
+    variant = ifelse(
+      forest_non_forest == "forest",
+      sub("/.*", "", category),
+      NA
+    )
+  )
+
+forest_present <- ifelse(
+  nrow(imported_table_full %>% 
+         filter(forest_non_forest == "forest")) > 0,
+  TRUE,
+  FALSE)
+
+non_forest_present <- ifelse(
+  nrow(imported_table_full %>% 
+         filter(forest_non_forest == "non_forest")) > 0,
+  TRUE,
+  FALSE)
+
+# custom method to check that a value is _not_ present in a vector
+"%!in%" <- function(x, table) match(x, table, nomatch = 0) == 0
+
+warning_list <- NA
+
+remove_FF <- function(colour_param) {
+  # in certain variations of the colortools::sequential method, it adds a trailing FF on top of the standard 6 character hexadecimal colour. This function checks for FF values at the end of the string and then removes any characters after the regular hexadecimal code
+  
+  x <- as.list(colour_param)
+  if(grepl(".*FF$", x, perl = TRUE)){
+    colour_param <- unlist(
+      lapply(x, function(i){
+        j <- substr(i, 1, 7)
+      })
+    )
+  }
+  return(colour_param)
+}
+
+if(non_forest_present) {
+  starting_colour <- "#808080"
+  non_forest_table <- imported_table_full %>% 
+    filter(
+      forest_non_forest == "non_forest",
+      category_mapped_for_colour %!in% nf_colour_table$classification
+    ) %>% 
+    select(category_mapped_for_colour) %>% 
+    distinct() %>% 
+    mutate(colour_categories = nrow(.),
+           percent = case_when(
+             colour_categories == 1 ~ 0,
+             colour_categories == 2 ~ 40,
+             colour_categories == 3 ~ 33,
+             colour_categories == 4 ~ 25,
+             colour_categories == 5 ~ 20,
+             colour_categories == 6 ~ 15,
+             colour_categories == 7 ~ 13,
+             colour_categories == 8 ~ 12,
+             colour_categories == 9 ~ 11,
+             colour_categories == 10 ~ 10,
+             colour_categories == 11 ~ 9,
+             colour_categories == 12 ~ 8,
+             colour_categories == 13 ~ 7,
+             colour_categories == 14 ~ 7,
+             colour_categories == 15 ~ 6,
+             colour_categories == 16 ~ 6,
+             colour_categories == 17 ~ 5,
+             colour_categories == 18 ~ 5,
+             colour_categories > 19 ~ 2,
+           ))
+  
+  percent_non_forested <- unique(non_forest_table$percent)
+  non_forested_colours <- sequential(starting_colour,
+                                     what = "value",
+                                     percentage = percent_non_forested,
+                                     fun = "sqrt",
+                                     plot = TRUE)
+  
+  # the first colour is always black so we shall remove it
+  # however we need to calculate the length of the colour list specially because of the sequential percentage when there are potentially a large number of nf_colours
+  colour <- non_forested_colours[2:(nrow(non_forest_table) + 1)]
+  colour <- remove_FF(colour)
+  
+  classification <- non_forest_table %>% 
+    select(category_mapped_for_colour) %>% 
+    pull
+  
+  nf_colour_table <- rbind(
+    nf_colour_table,
+    data.frame(
+      classification, colour, stringsAsFactors = FALSE)
+  )
+}
+
+if(forest_present) {
+  forested_BGCs <- imported_table_full %>% 
+    filter(forest_non_forest == "forest") %>% 
+    select(category) %>% 
+    distinct() %>% 
+    pull
+  
+  unique_BGCs <- unique(sub("/.*", "", forested_BGCs))
+  
+  zonal_colours <- SUBZONE_COLOURS_KEY %>% 
+    filter(
+      classification %in% imported_table_full$category
+    ) %>% 
+    mutate(
+      BGC = sub("/.*", "", classification)
+    )
+  
+  for(i in unique_BGCs) {
+    # i = unique_BGCs[1]
+    
+    zonal_colour <- zonal_colours %>% 
+      filter(
+        BGC == i
+      ) %>% 
+      select(colour) %>%
+      pull()
+    
+    if(length(zonal_colour) < 1) {
+      warn_01 <- warning(paste0('zonal colour not found for ', i, ', assigning #FF6347'))
+      warning_list <- as.list("zonal_colour": warn_01)
+      print(warn_01)
+      zonal_colour <- "#FF6347"
+    }
+    
+    imported_table <- imported_table_full %>% 
+      filter(variant == i,
+             forest_non_forest == "forest")
+    
+    imported_table <- imported_table %>% 
+      left_join(edatopic_reference, by = c("category" = "SS_NoSpace")) %>% 
+      mutate(
+        site_series = ifelse(
+          grepl("(?i)/[0-9]", category, perl = TRUE),
+          sub(".*/", "", category),
+          category),
+        x = case_when(
+          grepl("(?i)A", Edatopic, perl = TRUE) ~ "A",
+          grepl("(?i)B", Edatopic, perl = TRUE) ~ "B",
+          grepl("(?i)C", Edatopic, perl = TRUE) ~ "C",
+          grepl("(?i)D", Edatopic, perl = TRUE) ~ "D",
+          grepl("(?i)E", Edatopic, perl = TRUE) ~ "E",
+        ),
+        y = case_when(
+          grepl("0", Edatopic) ~ "0",
+          grepl("1", Edatopic) ~ "1",
+          grepl("2", Edatopic) ~ "2",
+          grepl("3", Edatopic) ~ "3",
+          grepl("4", Edatopic) ~ "4",
+          grepl("5", Edatopic) ~ "5",
+          grepl("6", Edatopic) ~ "6",
+          grepl("7", Edatopic) ~ "7",
+        )
+      )
+    
+    imported_table <- imported_table %>% 
+      left_join(edatopic_position_values, by = c("Edatopic" = "id"))
+    
+    x.ls <- as.list(forested_BGCs)
+    out <- lapply(x.ls, function(xy) {
+      temp <- imported_table %>% 
+        filter(category == xy) %>% 
+        select(position_value) %>% 
+        filter(position_value == min(position_value)) %>% 
+        distinct() %>% 
+        mutate(category = xy,
+               minimum_position_value = position_value) %>% 
+        select(category, minimum_position_value)
+    })
+    out <- do.call("rbind", out)
+    
+    imported_table <- imported_table %>%
+      left_join(out)
+    imported_table <- imported_table[, c("category", "Edatopic", "site_series", "x", "y", "position_value", "minimum_position_value", "forest_non_forest", "variant", "category_mapped_for_colour", "mapped_to")]
+    
+    edatopic_position_01_minimum <-
+      imported_table %>% 
+      filter(site_series %in% c("01", "101")) %>% 
+      select(minimum_position_value) %>% 
+      distinct() %>% 
+      pull()
+    
+    categories_with_cooler_colours <- imported_table %>% 
+      filter(as.numeric(minimum_position_value) < edatopic_position_01_minimum) %>% 
+      select(category, minimum_position_value) %>% 
+      distinct() %>% 
+      mutate(colour_categories = nrow(.),
+             percent = case_when(
+               colour_categories == 1 ~ 0,
+               colour_categories == 2 ~ 40, # the higher the percent, the fewer colours will be in the colour palette. Fewer are needed with fewer colour categories.
+               colour_categories == 3 ~ 33,
+               colour_categories == 4 ~ 25,
+               colour_categories == 5 ~ 20,
+               colour_categories == 6 ~ 15,
+             ))
+    
+    categories_with_warmer_colours <- imported_table %>% 
+      filter(as.numeric(minimum_position_value) > edatopic_position_01_minimum) %>% 
+      select(category, minimum_position_value) %>% 
+      distinct() %>% 
+      mutate(colour_categories = nrow(.),
+             percent = case_when(
+               colour_categories == 1 ~ 0,
+               colour_categories == 2 ~ 40,
+               colour_categories == 3 ~ 33,
+               colour_categories == 4 ~ 25,
+               colour_categories == 5 ~ 20,
+               colour_categories == 6 ~ 15,
+             ))
+    
+    if(length(categories_with_cooler_colours) && length(categories_with_warmer_colours)) {
+      three_starting_points <- triadic(zonal_colour)
+    }
+    
+    x <- col2rgb(three_starting_points[2])
+    y <- col2rgb(three_starting_points[3])
+    # The hottest colour is completely red (R=255, G=0, B=0).
+    # The coldest colour is completely blue (R=0, G=0, B=255).
+    # So the more R you have, the warmer the colour, and the more B you have, the cooler the colour.
+    # after some discussion with the team, it was determined to flip this logic about warm/cold.
+    if(x[1] < y[1]) {
+      warm_starting_colour <- three_starting_points[2]
+      cool_starting_colour <- three_starting_points[3]
+    } else {
+      warm_starting_colour <- three_starting_points[3]
+      cool_starting_colour <- three_starting_points[2]
+    }
+    
+    percent_cool <- unique(categories_with_cooler_colours$percent)
+    cool_colours <- sequential(cool_starting_colour,
+                               what = "value",
+                               percentage = percent_cool,
+                               v = 1,
+                               alpha = 1,
+                               fun = "sqrt",
+                               plot = TRUE)
+    cool_colours <- rev(cool_colours[-1])
+    cool_colours <- remove_FF(cool_colours)
+    
+    categories_with_cooler_colours <- categories_with_cooler_colours %>% 
+      mutate(colour = cool_colours)
+    
+    # if there are more than three colours needed for a colour palette, start a whole new one so that the overall colour theme for dryer/warmer colours is more varied. For example in the dryer colour scheme for a forest type, you might have three yellow shades and two purple shades, but all five represent dryer colours.
+    if(nrow(categories_with_warmer_colours) > 3) {
+      first_warm_colour <- colortools::adjacent(warm_starting_colour)[3]
+      second_warm_colour <- colortools::adjacent(warm_starting_colour)[2]
+      percent_warm <- 33
+      warm_colours_1 <- sequential(first_warm_colour,
+                                   what = "value",
+                                   percentage = percent_warm,
+                                   plot = TRUE)
+      
+      warm_colours_1 <- rev(warm_colours_1[2:length(warm_colours_1)])
+      colours_left <- nrow(categories_with_warmer_colours) - 3
+      colours_left
+      
+      if(colours_left < 2) {
+        warm_colours_2 <- second_warm_colour
+        
+      } else {
+        percent_warm <- case_when(
+          colours_left == 2 ~ 40,
+          colours_left == 3 ~ 33,
+          colours_left == 4 ~ 25,
+        )
+        warm_colours_2 <- sequential(second_warm_colour,
+                                     what = "value",
+                                     percentage = percent_warm,
+                                     plot = TRUE)
+        
+        warm_colours_2 <- rev(warm_colours_2[2:length(warm_colours_2)])
+      }
+      warm_colours <- c(warm_colours_1, warm_colours_2)
+    } else {
+      percent_warm <- unique(categories_with_warmer_colours$percent)
+      warm_colours <- sequential(warm_starting_colour,
+                                 what = "value",
+                                 percentage = percent_warm,
+                                 plot = TRUE)
+      warm_colours <- rev(warm_colours[-1])
+    }
+    
+    warm_colours <- remove_FF(warm_colours)
+    
+    categories_with_warmer_colours <- categories_with_warmer_colours %>% 
+      mutate(colour = warm_colours)
+    
+    colours_added <- bind_rows(categories_with_cooler_colours, categories_with_warmer_colours)
+    
+    imported_table <- imported_table %>% 
+      left_join(colours_added) %>% 
+      mutate(colour = ifelse(site_series %in% c("01", "101"), zonal_colour, colour)) %>% 
+      arrange(site_series)
+    
+    colour_scheme <- imported_table %>%
+      filter(forest_non_forest == "forest") %>% 
+      select(colour) %>% 
+      pull
+    
+    df <- data.frame(
+      x = imported_table %>% 
+        filter(forest_non_forest == "forest") %>% 
+        select(x) %>% 
+        pull,
+      y = as.numeric(imported_table %>% 
+                       filter(forest_non_forest == "forest") %>% 
+                       select(y) %>% 
+                       pull),
+      Site_Series = imported_table %>% 
+        filter(forest_non_forest == "forest") %>% 
+        select(site_series) %>% 
+        pull
+    )
+    
+    edatopic_grid <- ggplot(df, aes(x, y, width = 1, height = 1)) +
+      geom_tile(aes(fill = Site_Series), colour = "grey50") + 
+      xlab("Soil Nutrient Regime") +
+      ylab("Soil Moisture Regime") +
+      scale_fill_manual(values=unique(colour_scheme))
+    
+    edatopic_grid + scale_y_reverse() + scale_x_discrete(position = "top")
+    
+    ggsave(file.path(qml_out , paste0("edatopic_", i, ".png")))
+    
+    categories_and_colours <- imported_table %>% 
+      mutate(classification = category) %>% 
+      filter(forest_non_forest == "forest") %>% 
+      select(classification, colour) %>% 
+      distinct()
+    
+    saveRDS(categories_and_colours, file =paste0(i, "_colour.rds"))
+  }
+}
+
+rd.file <- as.list(list.files(pattern = ".rds"))
+rd_colours <- lapply(rd.file, function(xy) {
+  my_data <- readRDS(xy)
+})
+unlink("*_colour.rds")
+
+forested_colours <- do.call("rbind", rd_colours)
+
+forest_and_non_forest_colours <- rbind(nf_colour_table, forested_colours)
+
+distinct_colours_colour_table <- forest_and_non_forest_colours %>% 
+  filter(classification %in% imported_table_full$category_mapped_for_colour) %>% 
+  distinct()
+
+distinct_colours_imported_table_full <- imported_table_full %>%
+  select(category_mapped_for_colour) %>%
+  distinct()
+
+colour_duplication_check <- ifelse(
+  nrow(distinct_colours_imported_table_full) != nrow(distinct_colours_colour_table),
+  warning('Duplicate colours in forest_and_non_forest_colours'),
+  warning('no duplicate colours present') ) 
+print(colour_duplication_check)
+
+imported_table_full <- imported_table_full %>%
+  left_join(forest_and_non_forest_colours, by = c("category_mapped_for_colour" = "classification"))   
+
+```
+
+
+```{r generate .qml file, tidy = TRUE}
+#map_title = "test"
+
+# base tags that are standard to .qml files with qgis software
+alpha = 255
+base = newXMLNode("qgis")
+addAttributes(base,
+              minScale="1e+08",
+              version="3.4.15-Madeira",
+              mapTitle=paste0(map_title, "_v1"),
+              maxScale="0",
+              hasScaleBasedVisibilityFlag="0",
+              styleCategories="AllStyleCategories")
+flags <- newXMLNode("flags")
+identifiable <- newXMLNode("Identifiable", 1)
+removable <- newXMLNode("Removable", 1)
+searchable <- newXMLNode("Searchable", 1)
+
+custom_properties <- newXMLNode("customproperties")
+property_a <- newXMLNode("property", attrs = c(value="false",
+                                               key="WMSBackgroundLayer"))
+property_b <- newXMLNode("property", attrs = c(value="false",
+                                               key="WMSPublishDataSourceUrl"))
+property_c <- newXMLNode("property", attrs = c(value="0",
+                                               key="embeddedWidgets/count"))
+property_d <- newXMLNode("property", attrs = c(value="Value",
+                                               key="identify/format"))
+
+pipe <- newXMLNode("pipe")
+raster_renderer <- newXMLNode("rasterrenderer",
+                              attrs = c(band="1",
+                                        type="paletted",
+                                        opacity="1",
+                                        alphaBand="-1"))
+raster_transparency <- newXMLNode("rasterTransparency")
+min_max_origin <- newXMLNode("minMaxOrigin")
+limits <- newXMLNode("limits", "None")
+extent <- newXMLNode("extent", "WholeRaster")
+stat_accuracy <- newXMLNode("statAccuracy", "Estimated")
+cumulative_cut_lower <- newXMLNode("cumulativeCutLower", 0.02)
+cumulative_cut_upper <- newXMLNode("cumulativeCutUpper", 0.98)
+standard_deviation_factor <- newXMLNode("stdDevFactor", 2)
+
+# colour palette which is standard for categorized colour themes in qgis, with our own colours implemented
+colour_palette <- newXMLNode("colorPalette")
+palette_entry <- lapply(seq_along(imported_table_full$integercode),function(val){newXMLNode("paletteEntry",
+                                                                                            attrs = c(
+                                                                                              label = imported_table_full$category[val],
+                                                                                              value = imported_table_full$integercode[val],
+                                                                                              alpha = alpha,
+                                                                                              color = imported_table_full$colour[val],
+                                                                                              forest_type= imported_table_full$forest_non_forest[val]))
+})
+addChildren(colour_palette,palette_entry)
+
+colour_ramp <- newXMLNode("colorramp", attrs = c(type="randomcolors",
+                                                 name="[source]"))
+
+brightness_contrast <- newXMLNode("brightnesscontrast", attrs = c(brightness=0,
+                                                                  contrast=0))
+hue_saturation <- newXMLNode("huesaturation", attrs = c(colorizeStrength=100,
+                                                        saturation=0,
+                                                        colorizeRed=255,
+                                                        grayscaleMode=0,
+                                                        colorizeGreen=128,
+                                                        colorizeBlue=128,
+                                                        colorizeOn=0))
+
+blend_mode <- newXMLNode("blendMode", 0)
+
+addChildren(flags, list(identifiable,
+                        removable,
+                        searchable))
+addChildren(custom_properties, list(property_a,
+                                    property_b,
+                                    property_c,
+                                    property_d))
+addChildren(pipe, list(raster_renderer,
+                       brightness_contrast,
+                       hue_saturation))
+addChildren(raster_renderer, list(raster_transparency,
+                                  min_max_origin,
+                                  colour_palette,
+                                  colour_ramp))
+addChildren(min_max_origin, list(limits,
+                                 extent,
+                                 stat_accuracy,
+                                 cumulative_cut_lower,
+                                 cumulative_cut_upper,
+                                 standard_deviation_factor))
+addChildren(base, list(flags,
+                       custom_properties,
+                       pipe,
+                       blend_mode))
+
+writeLines(saveXML(base), file.path(qml_out, paste0(map_title, ".qml")))
+
+if(!is.na(warning_list)) {
+  print(warn_01)
+}
+print(colour_duplication_check)
+```
+
+
+```{r read geopackage file}
+library(sf)
+
+aoi <- st_read("cc_poly_example.gpkg")
+
+
+
+
+
+```
+
+The script below starts to solve the problem of patterning for polygons in QGIS. In the polygon_patterning folder are some example themes that have been created to represent alpine, avalanche, flood types etc. They are by no means a final draft of what the patterns should be.
+
+```{r non_forest_qml}
+
+get_xml_polygon <- function(type){
+  return(
+    getNodeSet(
+      xmlParse(file = paste0("Deception_AOI/_MapUnitLegend/polygon_patterning/", type, ".qml")),
+      "/document/layer")
+  )
+}
+
+alpine_doc <- get_xml_polygon("alpine")
+avalanche_doc <- get_xml_polygon("avalanche")
+beachland_doc <- get_xml_polygon("beachland")
+flood_doc <- get_xml_polygon("flood")
+grassland_doc <- get_xml_polygon("grassland")
+hydrogenic_doc <- get_xml_polygon("hydrogenic")
+rock_doc <- get_xml_polygon("rock")
+subalpine_shrub_doc <- get_xml_polygon("subalpine_shrub")
+disclimax_doc <- get_xml_polygon("disclimax")
+other_doc <- get_xml_polygon("other")
+
+
+map_unit_match_table <- tribble(
+  ~map_unit, ~match_list,
+  "alpine", c("Af, Ag, Ah, Am, Wa, Az, As, At"),
+  "beachland", c("Bb, Br, Bh, B"),
+  "flood", c("Fl, Ff, Fa, Fm"),
+  "grassland", c("Ga, Gs, Gb, Gg"),
+  "hydrogenic", c("Hs, Hv, Hw, Hh"),
+  "rock", c("Rc, Ro, Rt, Rl, Rd"),
+  "subalpine_shrub", c("Sc, Sk"),
+  "avalanche", c("Vh, Vs, Vt"),
+  "disclimax", c("Xv, Xz, Xa, Xvh, Xvs, Xvt"),
+)
+
+
+
+polygons <- imported_table_full %>%
+  filter(forest_non_forest == "non_forest")
+
+polygons$match_ <- lapply(polygons$category, function(x) {
+  return(
+    
+    case_when(
+      grepl(x, map_unit_match_table$match_list[1]) ~ map_unit_match_table$map_unit[1],
+      grepl(x, map_unit_match_table$match_list[2]) ~ map_unit_match_table$map_unit[2],
+      grepl(x, map_unit_match_table$match_list[3]) ~ map_unit_match_table$map_unit[3],
+      grepl(x, map_unit_match_table$match_list[4]) ~ map_unit_match_table$map_unit[4],
+      grepl(x, map_unit_match_table$match_list[5]) ~ map_unit_match_table$map_unit[5],
+      grepl(x, map_unit_match_table$match_list[6]) ~ map_unit_match_table$map_unit[6],
+      grepl(x, map_unit_match_table$match_list[7]) ~ map_unit_match_table$map_unit[7],
+      grepl(x, map_unit_match_table$match_list[8]) ~ map_unit_match_table$map_unit[8],
+      grepl(x, map_unit_match_table$match_list[9]) ~ map_unit_match_table$map_unit[9],
+    ))
+})
+
+polygons <- polygons %>% 
+  mutate(match_ = ifelse(is.na(match_),
+                         "other",
+                         match_))
+
+base = newXMLNode("qgis",
+                  attrs = c(
+                    styleCategories="AllStyleCategories",
+                    simplifyDrawingTol="1",
+                    simplifyDrawingHints="1",
+                    simplifyLocal="1",
+                    version="3.10.4-A",
+                    simplifyAlgorithm="0",
+                    readOnly="0",
+                    hasScaleBasedVisibilityFlag="0",
+                    maxScale="0",
+                    labelsEnabled="0",
+                    minScale="1e+08",
+                    simplifyMaxScale="1",
+                    mapTitle="non_forest_v1"
+                  ))
+
+flags <- newXMLNode("flags", parent = base)
+identifiable <- newXMLNode("Identifiable", 1, parent = flags)
+removable <- newXMLNode("Removable", 1, parent = flags)
+searchable <- newXMLNode("Searchable", 1, parent = flags)
+
+renderer_v2 <- newXMLNode("renderer-v2",
+                          attrs = c(
+                            forceraster="0",
+                            attr="DN",
+                            type="categorizedSymbol",
+                            symbollevels="0",
+                            enableorderby="0"
+                          ),
+                          parent = base)
+
+# listy is 8 values that correlate to an example QGIS file
+listy <- c(-2147483648, 0:7)
+
+
+categories <- newXMLNode("categories", parent = renderer_v2)
+category <- lapply(listy,function(val){
+  newXMLNode(
+    "category",
+    attrs = c(
+      symbol = val,
+      value = val,
+      label = val,
+      render = "true"
+    )
+  )
+})
+document <- newXMLNode("document")
+
+
+symbols <- newXMLNode("symbols", parent = renderer_v2)
+symbol <- lapply(seq_along(listy),function(val){
+  newXMLNode(
+    "symbol",
+    attrs = c(
+      alpha = "1",
+      force_rhr = "0",
+      name = val,
+      # value = polygons$match_[val],
+      # label = polygons$category[val],
+      type = "fill",
+      clip_to_extent = "1"
+    )
+    ,
+    case_when(
+      listy[val] == "1" ~
+        append.xmlNode(document, alpine_doc),
+      listy[val] == "2" ~ append.xmlNode(document, avalanche_doc),
+      listy[val] == "3" ~ append.xmlNode(document, beachland_doc),
+      listy[val] == "4" ~ append.xmlNode(document, flood_doc),
+      listy[val] == "5" ~ append.xmlNode(document, grassland_doc),
+      listy[val] == "6" ~ append.xmlNode(document, hydrogenic_doc),
+      listy[val] == "7" ~ append.xmlNode(document, rock_doc),
+      listy[val] == "-2147483648" ~ append.xmlNode(document, subalpine_shrub_doc),
+      listy[val] == "0" ~ append.xmlNode(document, disclimax_doc)
+      # listy$thing[val] == "2" ~ append.xmlNode(document, other_doc)
+    )
+  )
+  
+})
+
+
+addChildren(symbols, symbol)
+addChildren(categories, category)
+
+# base = newXMLNode("qgis_test")
+
+writeLines(saveXML(base), file.path(qml_out, "non_forest.qml"))
+
+
+```
+

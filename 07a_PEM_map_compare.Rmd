@@ -1,0 +1,339 @@
+---
+title: "07a_PEM_map_comparison"
+author: "G. Perkins"
+date: "24/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Compare Maping outputs 
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(stringr)
+library(raster)
+library(sf)
+library(RColorBrewer)
+
+
+```
+
+```{r}
+
+AOI <- "Deception"
+#AOI <- "BoundaryTSA"
+
+# set up file structure
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+onedrive <- "C:/Users/genperk/OneDrive - Government of BC/PEM_DATA/"
+
+
+bec_shp <- st_read(file.path(shapes_dir, "bec.gpkg"), quiet = TRUE)
+
+
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+
+
+```
+
+select maps to compare 
+
+```{r}
+map_dir1 = "D:/PEM_DATA/BEC_DevExchange_Work/Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/89"
+map_dir2 = "D:/PEM_DATA/BEC_DevExchange_Work/Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/93"
+map_dir3 = "D:/PEM_DATA/BEC_DevExchange_Work/Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/95"
+# 
+# map_dir1 = file.path(onedrive, "_data_sharing","PEM_standards_manuscript","balancing", "raw_model")
+# map_dir1 = file.path(onedrive, "_data_sharing","PEM_standards_manuscript","balancing", "mapunit_optimised")
+
+
+map1 <-  list.files(map_dir1, full.names=TRUE, all.files=TRUE, pattern ="\\.tif$")
+
+key1 <- read.csv(list.files(map_dir1, full.names = TRUE, all.files = TRUE, pattern ="\\_key.csv")) %>% 
+  mutate(map.response.1 = map.response)%>%
+  dplyr::select(x, map.response.1)
+
+map2 <-  list.files(map_dir2, full.names=TRUE, all.files=TRUE, pattern ="\\.tif$")
+
+key2 <- read.csv(list.files(map_dir2, full.names = TRUE, all.files = TRUE, pattern = "\\_key.csv")) %>%
+   mutate(map.response.2 = map.response)%>%
+  dplyr::select(x, map.response.2)
+
+map3 <-  list.files(map_dir3, full.names=TRUE, all.files=TRUE, pattern ="\\.tif$")
+
+key3 <- read.csv(list.files(map_dir3, full.names = TRUE, all.files = TRUE, pattern = "\\_key.csv")) %>%
+   mutate(map.response.3 = map.response)%>%
+  dplyr::select(x, map.response.3)
+
+
+```
+
+# read in maps 
+
+```{r}
+# read in the img predicted surfaces
+mapgrid.1 <- raster(map1)
+mapgrid.2 <- raster(map2)
+mapgrid.3 <- raster(map3)
+
+```
+
+
+ # build a matching key 
+ 
+```{r, echo = FALSE}
+akey <- data.frame(full_join(key1, key2, by= "x"))
+
+# if matching key 
+if(isTRUE(identical(akey$map.response.1, akey$map.response.2))){
+  
+  print("both keys match")
+
+  } else {
+  
+  print("need to match keys and raster")
+ 
+   ## NOT TESTED YET!
+    
+    # if there are mismatched need to create a new key that includes all the values 
+    map.key.all$key.total <- seq(1,length(map.key.all$category),1)
+    
+    # this is the longest list # should not need to reclass this one
+    key.m1 = map.key.all %>% dplyr::select(c(m1,key.total)) %>% rename(id = m1,v = key.total)
+    key.m1 <-key.m1[complete.cases(key.m1),]
+    key.m1m <-as.matrix(key.m1)
+    
+    # reclass the second raster (shorter number of ss values)
+    key.m2 = map.key.all %>% dplyr::select(c(m2,key.total)) %>% rename(id = m2,v = key.total)
+    key.m2 <-key.m2[complete.cases(key.m2),]
+    key.m2m <-as.matrix(key.m2)
+    
+    map2cr <- reclassify(map2c, key.m2m) # reclasss based on the values  ; #plot(map2cr); plot(map1c)
+        
+     
+}
+# check third map key 
+akey <- data.frame(full_join(akey, key3, by= "x"))
+
+if(isTRUE(identical(akey$map.response.1, akey$map.response.2))){
+  
+  print("both keys match")
+
+  }
+
+
+
+# once they are matching subset map 1 (raw) from matching map2 
+dif <- mapgrid.1 - mapgrid.2 
+
+writeRaster(dif, file.path(onedrive, "_data_sharing","PEM_standards_manuscript","balancing", "basic_areaweight_delta.tif"))
+
+
+
+
+
+# get histogram of data 
+
+map1.df <- as.data.frame(mapgrid.1) %>% 
+  filter(!is.na(.)) %>%
+  mutate(map = "map1") 
+
+names(map1.df)= c("response", "map")
+              
+map2.df <- as.data.frame(mapgrid.2) %>%
+  dplyr::filter(!is.na(.)) %>%
+  dplyr::filter(forest_combo_bgcs > 0)%>%
+  mutate(map = "map2")
+
+names(map2.df)= c("response", "map")
+
+map_vals <- bind_rows(map1.df, map2.df)
+
+map3.df <- as.data.frame(mapgrid.3) %>%
+  dplyr::filter(!is.na(.)) %>%
+  dplyr::filter(forest_combo_bgcs > 0)%>%
+  mutate(map = "map3")
+
+names(map3.df)= c("response", "map")
+
+
+map_vals <- bind_rows(map_vals, map3.df)
+
+
+
+## plot histograms
+#maph <- ggplot() +
+#    geom_histogram(data = map_vals, aes(response, fill = map), position = 'identity')
+
+mapp <- map_vals %>%
+  group_by(map, response) %>%
+  summarise(response1 = length(response)) %>%
+  ungroup() %>%
+  left_join(akey, by = c("response" = "map.response.1")) %>%
+  dplyr::select(-map.response.2, -map.response.3.x, -map.response.3.y)
+
+
+pp <- ggplot (data = mapp, aes(x =x, y = response1, fill = map)) + 
+  geom_bar(stat =  "identity", position = "dodge") + 
+  theme(axis.text.x = element_text(angle = 90))
+
+pp
+
+# 
+# 
+# 
+# diff_h <- ggplot() +
+#     geom_histogram(data = dif.df, aes(layer))
+# 
+# p11 <-ggplot() +
+#     geom_raster(data = dif.df , aes(x = x, y = y, fill = layer)) +
+#     scale_fill_viridis_c() +
+#     coord_quickmap()
+# 
+# 
+# dif[dif ==0]<- NA ; plot(dif) # convert the 0 to NAs 
+# 
+# # recalss the values to 1 and 0 
+# m <- c(-Inf, -0.25, 1,0,0,0,  0.5, Inf, 1)
+# rclmat <- matrix(m, ncol=3, byrow=TRUE)
+# rc <- reclassify(dif, rclmat)
+# 
+# plot(rc)
+
+# 
+# 
+# # get a summary of the values 
+# map1.freq <- as.data.frame(table(as.vector(map1c))) 
+# map1.freq <- map1.freq %>% mutate(key.total = as.numeric(Var1))
+# 
+# map2.freq <- as.data.frame(table(as.vector(map2cr))) 
+# map2.freq <- map2.freq %>% mutate(key.total = as.numeric(as.character(Var1)))
+# 
+# freq.summary <-left_join(map.key.all,map1.freq,by = 'key.total')
+# freq.summary <- freq.summary %>% mutate(Map = "map1") %>% 
+#   dplyr::select(-c(m1,m2,Var1))
+# 
+# freq.summary2 <-left_join(map.key.all,map2.freq,by = 'key.total')
+# freq.summary2 <- freq.summary2 %>% mutate(Map = "map2") %>% dplyr::select(-c(Var1,m1,m2))
+# 
+# freq <- rbind(freq.summary,freq.summary2 )
+# freq <- freq[complete.cases(freq),]
+# 
+# create a BGC catergory 
+# 
+# BGCs <- sub("\\/.*", "", freq$category)
+# freq <- freq %>% mutate(BGC = BGCs)
+# 
+# freq <- freq %>% dplyr::filter(-(category =='Unk'))
+# 
+# # Generate plot
+# p1 <- ggplot(freq, aes(category,Freq, fill = Map)) + geom_bar(stat='identity', position='dodge'); #+ facet_wrap(~BGC) ; p1
+# p1 <- p1 + scale_y_log10()
+# p1 <- p1 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# 
+# p1
+
+
+
+
+
+
+
+
+
+
+```
+   
+
+##############################################################################
+## Map all three maps to compare
+##############################################################################
+
+# Plot 1: Full colour plot of the different values
+# make a colour ramp for the maps # add a colour pallette to match colours 
+l <- seq(100,25,length.out=101)
+c <- seq(0,100,length.out=101)
+col.ramp <- hcl(h = 140, c = c, l = l)
+col.ramp <- col.ramp[1:length(map.key.all$category)]
+
+opar <- par(mfrow=c(1,3),mar=c(3,3,2,1),oma=c(0,0,3,4),xpd=NA)
+zlim <- c(0,length(map.key.all$category))
+
+####map.key.all = the key to use  ## need to update these bits 
+legend.label<-rev(pretty(zlim,n=length(map.key.all$category)))
+legend.colors<-col.ramp[trunc((legend.label/max(legend.label))*100)+1]
+
+image(map1c,
+      col=col.ramp,
+      xlab="",ylab="",xaxt="n",yaxt="n",
+      zlim=zlim,
+      asp=1,bty="n",main="")
+mtext("Model 57",side=3,line=1,cex=1.2)
+
+image(map2cr,
+      col=col.ramp,
+      xlab="",ylab="",xaxt="n",yaxt="n",
+      zlim=zlim,
+      asp=1,bty="n",main="")
+mtext("Model 54",side=3,line=1,cex=1.2)
+
+image(rc,
+      col=col.ramp,
+      xlab="",ylab="",xaxt="n",yaxt="n",
+      zlim=c(0,1),
+      asp=1,bty="n",main="")
+mtext("Difference",side=3,line=1,cex=1.2)
+
+
+par(opar)
+
+
+############################################################
+############################################
+# Generate output (table and plot)
+###########################################
+
+# get a summary of the values 
+map1.freq <- as.data.frame(table(as.vector(map1c))) 
+map1.freq <- map1.freq %>% mutate(key.total = as.numeric(Var1))
+
+map2.freq <- as.data.frame(table(as.vector(map2cr))) 
+map2.freq <- map2.freq %>% mutate(key.total = as.numeric(as.character(Var1)))
+
+freq.summary <-left_join(map.key.all,map1.freq,by = 'key.total')
+freq.summary <- freq.summary %>% mutate(Map = "map1") %>% 
+  dplyr::select(-c(m1,m2,Var1))
+
+freq.summary2 <-left_join(map.key.all,map2.freq,by = 'key.total')
+freq.summary2 <- freq.summary2 %>% mutate(Map = "map2") %>% dplyr::select(-c(Var1,m1,m2))
+
+freq <- rbind(freq.summary,freq.summary2 )
+freq <- freq[complete.cases(freq),]
+
+# create a BGC catergory 
+
+BGCs <- sub("\\/.*", "", freq$category)
+freq <- freq %>% mutate(BGC = BGCs)
+
+freq <- freq %>% dplyr::filter(-(category =='Unk'))
+
+# Generate plot
+p1 <- ggplot(freq, aes(category,Freq, fill = Map)) + geom_bar(stat='identity', position='dodge'); #+ facet_wrap(~BGC) ; p1
+p1 <- p1 + scale_y_log10()
+p1 <- p1 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p1
+

@@ -1,0 +1,1702 @@
+---
+title: "Model transfer to new area"
+author: "G.Perkins"
+date: "14/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning = FALSE, message= FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(sf)
+library(dplyr)
+library(readxl)
+library(stringr)
+library(raster)
+library(stars)
+library(janitor)
+library(ggplot2)
+library(tidyverse)
+library(data.table)
+library(colorspace)
+library(terra)
+
+source(here::here('_functions', 'doc_theme_pem.R'))
+source(here::here('_functions', 'predict_map_tidy.R'))
+source(here::here('_functions', 'acc_metrix.R'))
+```
+
+
+In this script we will test the accuracy of applying a model generated in another study area to a new location of the same variant. In this case we built models using stage 1 data collected from Deception and applied to surrounding areas: 
+
+- Deception (SBSmc2) apply to: 
+    - Buck (SBSmc2 + ESSFmc)
+    - Old Fort (SBSmc2)
+    - Baboon (SBSmc2)
+    - Wetzinkwa (SBSmc2)
+    
+At these locations we collected one slice of data (5 paired transects), which we can use to assess the accuracy of the maps.
+
+The following presents the total predicted areas, and a comparison with the field collected data with predicted surface.
+
+
+## Baboon: 
+
+Baboon is located approx X distance west of Deception study area. We applied the SBSmc2 data to this location 
+
+```{r read in data baboon, echo = FALSE, warning = FALSE, message= FALSE}
+# select the area to model 
+
+AOI <- "Baboon"
+
+# set up file structure
+#AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+AOI_dir <- file.path(paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+bec_shp <- st_read(file.path(shapes_dir, "bec.gpkg"), quiet = TRUE)
+  
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+model_dir = "E:/temp/PEM_DATA/BEC_DevExchange_Work/Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/100"
+
+mrep = 100
+
+# set up function
+modeltype = "final_tmodel.rds"
+res_folder = "5m"
+
+rast_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", full.names = TRUE)
+```
+
+
+```{r run model babboon, echo = FALSE, eval = FALSE, warning = FALSE, message= FALSE}
+bgc = "SBSmc2"
+    mname = "fore_mu_bgc"
+    outDir <- file.path(out_dir, "forest", mname, mrep, bgc)
+    mod <- readRDS(file.path(model_dir, bgc, modeltype))
+    mcov <- names(mod$pre$mold$predictors)
+    
+    rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in%
+      tolower(mcov)] 
+
+    predict_map_tidy(
+      model = file.path(model_dir, bgc, modeltype),
+      cov = rast_list,
+      tilesize = 500,
+      outDir = outDir
+    )
+
+```
+
+
+```{r, echo = FALSE, warning=FALSE, message = FALSE}
+map_folder <- "E:\\temp\\PEM_DATA\\BEC_DevExchange_Work\\Baboon_AOI\\3_maps_analysis\\models\\forest\\fore_mu_bgc\\100\\SBSmc2\\"
+
+map <- raster(file.path(map_folder, "mosaic.tif"))
+
+plot(map)
+
+key <- read.csv(file.path(map_folder, "response_names.csv"))
+key
+
+get_counts <- function(map){
+  map1.df <- as.data.frame(map) %>%
+    filter(!is.na(.))
+  names(map1.df)= c("response")
+  return(map1.df)
+}
+
+map1.df <- get_counts(map) %>%
+  left_join(key, by = c("response" = "X")) %>%
+  dplyr::group_by(x) %>%
+  dplyr::summarise(response1 = length(response)) %>%
+  filter(!is.na(x))
+
+pp <- ggplot (data = map1.df, aes(x =x, y = response1)) + 
+  geom_bar(stat =  "identity", position = "dodge") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  xlab("site series")+
+  ylab("pixal count")+
+  ggtitle("Babboon : predicted pixal type across entire study area")
+
+pp
+
+
+```
+
+```{r intersect field and map values babbon, echo = FALSE, warning=FALSE, message = FALSE}
+# intersect the actual data with the predicted data 
+
+indata <- file.path(AOI_dir, "1_map_inputs","trainingData", "clean", "s1_transect_all_pts.gpkg")
+
+tpts <- st_read(indata, quiet = TRUE) %>%
+  dplyr::select(mapunit1, mapunit2, comments)
+
+subzones <- unique(bec_shp$BGC_LABEL)
+subzones <- gsub("\\s+","",subzones )
+
+tpts  <- tpts %>%
+  cbind(st_coordinates(.)) %>%
+  mutate(fnf = ifelse(grepl(paste0(subzones, collapse = "|"), mapunit1), "forest", "non_forest")) %>%
+  st_join(st_transform(bec_shp[, "BGC_LABEL"], st_crs(.)), join = st_nearest_feature) %>%
+  st_drop_geometry() %>% 
+  dplyr::select(fnf, everything()) %>% 
+  dplyr::rename(bgc_cat = BGC_LABEL) %>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+
+# match the column for map unit based on key 
+# select the target column using the mapkey if needed: 
+map.key.sub <- map.key %>%
+      dplyr::select(BaseMapUnit, MapUnit) %>%
+      distinct()
+  
+tpts <- tpts %>% left_join(map.key.sub, by = c("mapunit1" = "BaseMapUnit")) %>%
+    left_join(map.key.sub, by = c("mapunit2" = "BaseMapUnit")) %>%
+    dplyr::select(-mapunit1, -mapunit2) %>%
+    dplyr::rename("mapunit1" = MapUnit.x,
+                  "mapunit2" = MapUnit.y) %>%
+    dplyr::select(mapunit1, mapunit2, everything())
+
+  
+# filter for forest or non_forest points as required
+tpts <- tpts %>%
+  filter(fnf == "forest") %>% 
+  dplyr::select(-fnf)
+
+#table(tpts$mapunit1)
+
+tpts <- tpts %>%
+    dplyr::mutate(target = as.factor(mapunit1),
+                          target2 = as.factor(mapunit2))
+
+# filter columns
+mpts <- tpts %>%
+     dplyr::select(target, target2, bgc_cat, comments, x, y)# %>%
+  #st_as_sf(., coords = c("x","y"))
+
+mptsxy <- mpts %>% dplyr::select(x, y)
+names(key) = c("map", ".pred_class")
+
+mpts <- cbind(mpts, map = raster::extract(map, mptsxy)) %>%
+  left_join(key)
+
+data <- mpts %>% dplyr::select(target, target2, .pred_class)
+
+```
+
+## Predicted vs Field Sampling
+
+```{r accuracy plots babboon, echo = FALSE, warning = FALSE, message = FALSE}
+target = as.data.frame(table(data$target)) %>% mutate(type = "transect")
+pred <- as.data.frame(table(data$.pred_class))%>% mutate(type = "pred")
+
+totals <- bind_rows(target, pred)
+
+pprop <- ggplot (data = totals, aes(x =Var1, y = Freq, fill = type)) + 
+  geom_bar(stat =  "identity", position = "dodge",color = "black") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  xlab("site series")+
+  ylab("type")+
+  theme_pem()+ 
+  scale_fill_discrete_sequential(palette = "Light Grays")
+#  geom_text(aes(label= c(paste0(x," (", round(prop,0),")"))), color="black",position = position_stack(0.5), size = 2)+
+#  theme(legend.position = "None")
+
+pprop
+# generate spatially explicit results for primary and prime/alternate
+xx <- data %>% tabyl(target, .pred_class)
+xy <- pivot_longer(xx, cols = !target) 
+
+knitr::kable(xx)
+#xy
+
+```
+
+
+```{r full accuracy metrics babboon, echo = FALSE, eval = TRUE}
+# calculate the accuracy metrics 
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic.csv")) %>%
+  dplyr::select(c(target, Pred, fVal))
+  
+fMat <- data.table(fMat)
+
+#2) calculate aspatial metrics (overall and mapunit % correct)
+
+ ###harmonize levels
+  targ.lev <- levels(data$target)
+  pred.lev <- levels(data$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  data$target <- factor(data$target, levels = levs)
+  data$.pred_class <- factor(data$.pred_class, levels = levs)
+
+acc_mu <- acc_metrix(data)
+
+```
+  
+### Babboon accuracy metrics
+
+```{r, echo = FALSE}
+## Generate graphs - overall accuracy
+bsRes <- acc_mu %>%
+    mutate(across(where(is.numeric), ~ replace_na(.,0)))
+
+df_all <- bsRes %>%
+   group_by(target) %>%
+   dplyr::select(target, trans.tot, pred.tot, trans.sum) %>%
+    dplyr::summarise(across(where(is.numeric), sum)) %>%
+    rowwise()%>%
+  mutate(pred.ratio = pred.tot - trans.tot,
+         pred.obs.pc = (pred.ratio/trans.tot) * 100) %>%
+   mutate(pred.obs.pc = ifelse(pred.tot == 0, -100, pred.obs.pc),
+          pred.obs.type = ifelse(pred.obs.pc <0,"under predict", "over predict"),
+          pred.obs.total = ifelse(pred.obs.pc <0, pred.obs.pc*-1, pred.obs.pc)) %>%
+    ungroup()
+
+
+# Plot the top 20 iterations: 
+
+df_total <- df_all %>%
+        summarise(mu_devation = sum(pred.obs.total),
+                  mu_var = var(pred.obs.total),
+                  mu_mean = mean(pred.obs.total),
+                  mu_sd = sd(pred.obs.total))
+
+ds_plot <- ggplot( df_all , aes(x=target, y=pred.obs.pc)) +
+           geom_bar(stat='identity',  aes(fill = pred.obs.type), width=.5) +
+          coord_flip(ylim =c(-100, 110))# +
+         #  labs(title = paste0("Top ranked balancing deviation plot :", bgcoi),
+              #  subtitle = "mean deviation (blue), standard deviation (black)") +
+           #facet_wrap(~ test_run)
+ds_plot
+
+```
+
+```{r, echo = FALSE}
+acc_sum_long <- bsRes %>%
+  dplyr::mutate(across(ends_with("overall"), ~.x *100)) %>% 
+  dplyr::mutate(across(ends_with("meanacc"), ~.x *100)) %>% 
+  dplyr::select(aspat_p_overall,  aspat_p_meanacc, 
+                  aspat_fp_overall,  aspat_fp_meanacc,
+                  spat_p_overall, spat_p_meanacc,
+                  spat_pf_overall,  spat_pf_meanacc, 
+                  aspat_pa_overall,  aspat_pa_meanacc,
+                  aspat_fpa_overall, aspat_fpa_meanacc,
+                  spat_pa_overall,  spat_pa_meanacc,
+                  spat_fpa_overall, spat_fpa_meanacc) %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "aspat") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial"))  %>%
+  mutate(type_model = case_when(
+    str_detect(accuracy_type, "_overall") ~ "area-weighted",
+    str_detect(accuracy_type, "_meanacc") ~ "unweighted")) %>%
+  mutate(accuracy_type_label = case_when(
+    str_detect(accuracy_type, "_p_") ~ "p",
+    str_detect(accuracy_type, "_pa_") ~ "pa",
+    str_detect(accuracy_type, "_fp_") ~ "fp",
+    str_detect(accuracy_type, "_pf_") ~ "fp",
+    str_detect(accuracy_type, "_fpa_") ~ "fpa")) %>%
+  mutate(type_label = paste0(type, "_", type_model))
+
+ 
+# set up order for plots 
+acc_sum_long$type_f = factor(acc_sum_long$type_label, levels = c("spatial_area-weighted" , "spatial_unweighted", "aspatial_area-weighted", 
+                                          "aspatial_unweighted"))
+
+                             
+acc_sum_long$accuracy_type_label = factor(acc_sum_long$accuracy_type_label, levels = c("p","pa", "fp","fpa"))
+
+
+# plot both the cv and test metrics
+p2 <- ggplot(aes(y = value, x = accuracy_type_label), data = acc_sum_long ) + 
+   geom_point()+ #(stat = "identity") +
+   #geom_bar()+
+   facet_wrap(~type_f, scales = "free_x", nrow = 2) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Accuracy measures (median + quartiles): SBSmc2") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100)+
+   theme_pem_facet()+ 
+   scale_fill_discrete_sequential(palette = "Light Grays")
+
+p2
+
+
+```
+  
+# Old Fort
+
+Old Fort is located approx X distance north west of Deception study area. We applied the SBSmc2 data to this location 
+
+```{r read in data, echo = FALSE, warning = FALSE, message= FALSE}
+# select the area to model 
+
+AOI <- "OldFort"
+
+# set up file structure
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+bec_shp <- st_read(file.path(shapes_dir, "bec.gpkg"), quiet = TRUE)
+aoi_of <- st_read(file.path(shapes_dir, "AOI.gpkg"), quiet = TRUE)  
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+model_dir = "E:/temp/PEM_DATA/BEC_DevExchange_Work/Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/100"
+
+mrep = 100
+
+# set up function
+modeltype = "final_tmodel.rds"
+res_folder = "5m"
+
+rast_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", full.names = TRUE)
+
+```
+
+
+```{r run map preduction, eval = FALSE, echo = FALSE, warning = FALSE, message= FALSE}
+
+bgc = "SBSmc2" 
+      
+      mname = "fore_mu_bgc" # or  #mname = "fore_mu_all"
+
+      outDir <- file.path(out_dir, "forest", mname, mrep, bgc)
+      
+      mod <- readRDS(file.path(model_dir, bgc, modeltype))
+      mcov <- names(mod$pre$mold$predictors)
+
+      # filter based on covariate for model param
+      rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in% tolower(mcov)]
+      
+      predict_map_tidy(
+        model = file.path(model_dir, bgc, modeltype),
+        cov = rast_list,
+        tilesize = 500,
+        outDir = outDir)
+        #outtileDir = file.path(outDir,"predicted"))
+      
+  } 
+
+```
+
+
+```{r, echo = FALSE, warning=FALSE, message = FALSE}
+map_folder <- "E:\\temp\\PEM_DATA\\BEC_DevExchange_Work\\OldFort_AOI\\3_maps_analysis\\models\\forest\\fore_mu_bgc\\100\\SBSmc2\\"
+#aoi_of <- st_read()
+mapof <- raster(file.path(map_folder, "mosaic.tif"))
+
+mapof <- mask(x = mapof, mask = aoi_of)
+
+plot(mapof)
+
+key <- read.csv(file.path(map_folder, "response_names.csv"))
+key
+
+get_counts <- function(mapof){
+  map1.df <- as.data.frame(mapof) %>%
+    filter(!is.na(.))
+  names(map1.df)= c("response")
+  return(map1.df)
+}
+
+map1.df <- get_counts(mapof) %>%
+  left_join(key, by = c("response" = "X")) %>%
+  dplyr::group_by(x) %>%
+  dplyr::summarise(response1 = length(response)) %>%
+  filter(!is.na(x))
+
+ppof <- ggplot (data = map1.df, aes(x =x, y = response1)) + 
+  geom_bar(stat =  "identity", position = "dodge") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  xlab("site series")+
+  ylab("pixal count")+
+  ggtitle("Old Fort : predicted pixal type across entire study area")
+
+ppof
+
+
+```
+
+```{r intersect field and map values, echo = FALSE, warning=FALSE, message = FALSE}
+
+# intersect the actual data with the predicted data 
+
+indata <- file.path(AOI_dir, "1_map_inputs","trainingData", "clean", "s1_transect_all_pts.gpkg")
+
+tpts <- st_read(indata, quiet = TRUE) %>%
+  dplyr::select(mapunit1, mapunit2, comments)
+
+subzones <- unique(bec_shp$BGC_LABEL)
+subzones <- gsub("\\s+","",subzones )
+
+tpts  <- tpts %>%
+  cbind(st_coordinates(.)) %>%
+  mutate(fnf = ifelse(grepl(paste0(subzones, collapse = "|"), mapunit1), "forest", "non_forest")) %>%
+  st_join(st_transform(bec_shp[, "BGC_LABEL"], st_crs(.)), join = st_nearest_feature) %>%
+  st_drop_geometry() %>% 
+  dplyr::select(fnf, everything()) %>% 
+  dplyr::rename(bgc_cat = BGC_LABEL) %>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+
+# match the column for map unit based on key 
+# select the target column using the mapkey if needed: 
+map.key.sub <- map.key %>%
+      dplyr::select(BaseMapUnit, MapUnit) %>%
+      distinct()
+  
+tpts <- tpts %>% left_join(map.key.sub, by = c("mapunit1" = "BaseMapUnit")) %>%
+    left_join(map.key.sub, by = c("mapunit2" = "BaseMapUnit")) %>%
+    dplyr::select(-mapunit1, -mapunit2) %>%
+    dplyr::rename("mapunit1" = MapUnit.x,
+                  "mapunit2" = MapUnit.y) %>%
+    dplyr::select(mapunit1, mapunit2, everything())
+
+  
+# filter for forest or non_forest points as required
+tpts <- tpts %>%
+  filter(fnf == "forest") %>% 
+  dplyr::select(-fnf)
+
+tpts <- tpts %>%
+    dplyr::mutate(target = as.factor(mapunit1),
+                          target2 = as.factor(mapunit2))
+# filter columns
+mpts <- tpts %>%
+     dplyr::select(target, target2, bgc_cat, comments, x, y)# %>%
+  #st_as_sf(., coords = c("x","y"))
+
+mptsxy <- mpts %>% dplyr::select(x, y)
+names(key) = c("map", ".pred_class")
+
+mpts <- cbind(mpts, map = raster::extract(mapof, mptsxy)) %>%
+  left_join(key)
+
+data <- mpts %>% dplyr::select(target, target2, .pred_class)
+
+
+```
+
+## Predicted vs Field Sampling
+
+```{r accuracy plots old fort, echo = FALSE, warning = FALSE, message = FALSE}
+target = as.data.frame(table(data$target)) %>% mutate(type = "transect")
+pred <- as.data.frame(table(data$.pred_class))%>% mutate(type = "pred")
+
+totals <- bind_rows(target, pred)
+
+pprop <- ggplot (data = totals, aes(x =Var1, y = Freq, fill = type)) + 
+  geom_bar(stat =  "identity", position = "dodge",color = "black") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  xlab("site series")+
+  ylab("type")+
+  theme_pem() + 
+  scale_fill_discrete_sequential(palette = "Light Grays")
+#  geom_text(aes(label= c(paste0(x," (", round(prop,0),")"))), color="black",position = position_stack(0.5), size = 2)+
+#  theme(legend.position = "None")
+
+pprop
+
+# generate spatially explicit results for primary and prime/alternate
+xx <- data %>% tabyl(target, .pred_class)
+xy <- pivot_longer(xx, cols = !target) 
+
+knitr::kable(xx)
+#xy
+
+```
+
+
+
+```{r full accuracy metrics oldfort, echo = FALSE, eval = TRUE}
+
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic.csv")) %>%
+  dplyr::select(c(target, Pred, fVal))
+  
+fMat <- data.table(fMat)
+
+#2) calculate aspatial metrics (overall and mapunit % correct)
+
+ ###harmonize levels
+  targ.lev <- levels(data$target)
+  pred.lev <- levels(data$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  data$target <- factor(data$target, levels = levs)
+  data$.pred_class <- factor(data$.pred_class, levels = levs)
+
+acc_mu <- acc_metrix(data)
+
+```
+  
+### Old Fort accuracy metrics
+  
+```{r, echo = FALSE}
+
+## Generate graphs - overall accuracy
+bsRes <- acc_mu %>%
+    mutate(across(where(is.numeric), ~ replace_na(.,0)))
+
+df_all <- bsRes %>%
+   group_by(target) %>%
+   dplyr::select(target, trans.tot, pred.tot, trans.sum) %>%
+    dplyr::summarise(across(where(is.numeric), sum)) %>%
+    rowwise()%>%
+  mutate(pred.ratio = pred.tot - trans.tot,
+         pred.obs.pc = (pred.ratio/trans.tot) * 100) %>%
+   mutate(pred.obs.pc = ifelse(pred.tot == 0, -100, pred.obs.pc),
+          pred.obs.type = ifelse(pred.obs.pc <0,"under predict", "over predict"),
+          pred.obs.total = ifelse(pred.obs.pc <0, pred.obs.pc*-1, pred.obs.pc)) %>%
+    ungroup()
+
+
+# Plot the top 20 iterations: 
+
+df_total <- df_all %>%
+        summarise(mu_devation = sum(pred.obs.total),
+                  mu_var = var(pred.obs.total),
+                  mu_mean = mean(pred.obs.total),
+                  mu_sd = sd(pred.obs.total))
+
+ds_plot <- ggplot( df_all , aes(x=target, y=pred.obs.pc)) +
+           geom_bar(stat='identity',  aes(fill = pred.obs.type), width=.5) +
+          coord_flip(ylim =c(-100, 110))# +
+         #  labs(title = paste0("Top ranked balancing deviation plot :", bgcoi),
+              #  subtitle = "mean deviation (blue), standard deviation (black)") +
+           #facet_wrap(~ test_run)
+ds_plot
+
+```
+
+```{r, echo = FALSE}
+acc_sum_long <- bsRes %>%
+  dplyr::mutate(across(ends_with("overall"), ~.x *100)) %>% 
+  dplyr::mutate(across(ends_with("meanacc"), ~.x *100)) %>% 
+  dplyr::select(aspat_p_overall,  aspat_p_meanacc, 
+                  aspat_fp_overall,  aspat_fp_meanacc,
+                  spat_p_overall, spat_p_meanacc,
+                  spat_pf_overall,  spat_pf_meanacc, 
+                  aspat_pa_overall,  aspat_pa_meanacc,
+                  aspat_fpa_overall, aspat_fpa_meanacc,
+                  spat_pa_overall,  spat_pa_meanacc,
+                  spat_fpa_overall, spat_fpa_meanacc) %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "aspat") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial"))  %>%
+  mutate(type_model = case_when(
+    str_detect(accuracy_type, "_overall") ~ "area-weighted",
+    str_detect(accuracy_type, "_meanacc") ~ "unweighted")) %>%
+  mutate(accuracy_type_label = case_when(
+    str_detect(accuracy_type, "_p_") ~ "p",
+    str_detect(accuracy_type, "_pa_") ~ "pa",
+    str_detect(accuracy_type, "_fp_") ~ "fp",
+    str_detect(accuracy_type, "_pf_") ~ "fp",
+    str_detect(accuracy_type, "_fpa_") ~ "fpa")) %>%
+  mutate(type_label = paste0(type, "_", type_model))
+
+ 
+# set up order for plots 
+acc_sum_long$type_f = factor(acc_sum_long$type_label, levels = c("spatial_area-weighted" , "spatial_unweighted", "aspatial_area-weighted", 
+                                          "aspatial_unweighted"))
+
+                             
+acc_sum_long$accuracy_type_label = factor(acc_sum_long$accuracy_type_label, levels = c("p","pa", "fp","fpa"))
+
+
+# plot both the cv and test metrics
+p2 <- ggplot(aes(y = value, x = accuracy_type_label), data = acc_sum_long ) + 
+   geom_point()+ #(stat = "identity") +
+   facet_wrap(~type_f, scales = "free_x", nrow = 2) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Accuracy measures (median + quartiles): SBSmc2") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100)+
+   theme_pem_facet()+ 
+   scale_fill_discrete_sequential(palette = "Light Grays")
+
+p2
+
+```
+  
+
+
+## Buck 
+
+Buck is located approx 50 South/SW of Deception study area. We applied two models (SBSmc2 and ESSFmc) to this area. 
+
+```{r read in Buck baboon, echo = FALSE, warning = FALSE, message= FALSE}
+# select the area to model 
+
+AOI <- "Buck"
+AOI_dir <- file.path(paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+bec_shp <- st_read(file.path(shapes_dir, "bec.gpkg"), quiet = TRUE)
+bec_shp <- bec_shp %>%
+  mutate(BGC_LABEL = gsub("\\s+","", BGC_LABEL))
+
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+model_dir = "E:/temp/PEM_DATA/BEC_DevExchange_Work/Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/100"
+
+mrep = 100
+
+# set up function
+modeltype = "final_tmodel.rds"
+res_folder = "5m"
+
+rast_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", full.names = TRUE)
+```
+
+
+```{r run model Buck, echo = FALSE, eval = FALSE, warning = FALSE, message= FALSE}
+bgc = "SBSmc2"
+bgc = "ESSFmc"
+
+#  for(bgc in bgcs){
+    mname = "fore_mu_bgc"
+    outDir <- file.path(out_dir, "forest", mname, mrep, bgc)
+    mod <- readRDS(file.path(model_dir, bgc, modeltype))
+    mcov <- names(mod$pre$mold$predictors)
+    
+    rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in%
+      tolower(mcov)] 
+
+    predict_map_tidy(
+      model = file.path(model_dir, bgc, modeltype),
+      cov = rast_list,
+      tilesize = 500,
+      outDir = outDir
+    )
+
+#}
+
+# Merge the parts of maps together 
+map_dir = file.path(out_dir, "forest", mname, mrep)
+
+folders <- as.list(c("ESSFmc","SBSmc2"))
+
+# step 1:  set up a key for the combined map (includes all the units)
+rkey <- lapply(folders, function (f){
+  
+  keys <- read.csv(file.path(map_dir, f, "response_names.csv")) %>%
+    mutate(model  = f)
+})
+
+rkey <- do.call("rbind", rkey)
+rkey <- rkey %>% dplyr::mutate(map.response = seq(1:length(x)))
+
+# Step 2: For each bgc, filter and mask the raster map and update key if needed
+
+combo_map <- lapply(folders, function(f){
+  
+#  f <- folders[[2]]
+  
+  rtemp <- raster(file.path(map_dir, f, "mosaic.tif"))
+  
+  rtemp[is.na(rtemp[])] <- 0 
+  
+  # filter to only predict over bgc
+  bec_filter <- bec_shp %>%
+    filter(BGC_LABEL == f) %>%
+    dplyr::select(BGC_LABEL) 
+    
+  rtemp <- raster::mask(rtemp, as(bec_filter,'Spatial'))
+  
+  subkey <- rkey %>% dplyr::filter(model == f) %>%
+    mutate(mosaic = as.numeric(rownames(.)))
+
+   # check if the key matches or needs reclassification 
+  if (isTRUE(unique(subkey$mosaic == subkey$map.response))) {
+    
+    print("matching key")
+  
+  } else {
+    
+    print("updating key")
+ 
+    m <- subkey %>%
+      dplyr::mutate(to = as.numeric(X), 
+              from = as.numeric(X)+1) %>%
+      dplyr::select(to, from, map.response) 
+      
+    reclm <-  as.matrix(m, ncol=3, byrow= TRUE)
+    rtemp <-  reclassify(rtemp, reclm, right = FALSE)#, include.lowest=TRUE)
+  
+  }
+  
+  rtemp <- reclassify(rtemp, cbind(-Inf, 0, NA), include.lowest=TRUE)
+  rtemp
+  
+})
+
+# join all the maps together
+
+if(length(folders) == 3) {
+  
+  all_key <- merge(combo_map[[1]], combo_map[[2]], overlap=TRUE)
+ # all_key <- merge(all_key, combo_map[[3]], overlap = TRUE)
+
+} 
+
+# tidy key and output maps
+rkey <- rkey %>% dplyr::select(x, model, map.response)
+       
+writeRaster(all_key, file.path(map_dir, "forest_combo_bgcs.tif"), overwrite = TRUE)
+
+write.csv(rkey, file.path(map_dir, "response_combo_bcgs_key.csv"))
+    
+```
+
+```{r, echo = FALSE}
+
+map_folder <- "E:\\temp\\PEM_DATA\\BEC_DevExchange_Work\\Buck_AOI\\3_maps_analysis\\models\\forest\\fore_mu_bgc\\100"
+
+#aoi_of <- st_read()
+mapof <- raster(file.path(map_folder, "forest_combo_bgcs.tif"))
+plot(mapof)
+
+key <- read.csv(file.path(map_folder,  "response_combo_bcgs_key.csv")) %>% 
+  dplyr::select(c("X",'x'))
+key
+
+get_counts <- function(mapof){
+  map1.df <- as.data.frame(mapof) %>%
+    filter(!is.na(.))
+  names(map1.df)= c("response")
+  return(map1.df)
+}
+
+map1.df <- get_counts(mapof) %>%
+  left_join(key, by = c("response" = "X")) %>%
+  dplyr::group_by(x) %>%
+  dplyr::summarise(response1 = length(response)) %>%
+  filter(!is.na(x))
+
+ppof <- ggplot (data = map1.df, aes(x =x, y = response1)) + 
+  geom_bar(stat =  "identity", position = "dodge") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  xlab("site series")+
+  ylab("pixal count")+
+  ggtitle("Buck: predicted pixal type across entire study area")
+
+ppof
+
+
+```
+
+```{r intersect field and map values buck, echo = FALSE, warning=FALSE, message = FALSE}
+
+# intersect the actual data with the predicted data 
+
+indata <- file.path(AOI_dir, "1_map_inputs","trainingData", "clean", "s1_transect_all_pts.gpkg")
+
+tpts <- st_read(indata, quiet = TRUE) %>%
+  dplyr::select(mapunit1, mapunit2, comments)
+
+subzones <- unique(bec_shp$BGC_LABEL)
+subzones <- gsub("\\s+","",subzones )
+
+tpts  <- tpts %>%
+  cbind(st_coordinates(.)) %>%
+  mutate(fnf = ifelse(grepl(paste0(subzones, collapse = "|"), mapunit1), "forest", "non_forest")) %>%
+  st_join(st_transform(bec_shp[, "BGC_LABEL"], st_crs(.)), join = st_nearest_feature) %>%
+  st_drop_geometry() %>% 
+  dplyr::select(fnf, everything()) %>% 
+  dplyr::rename(bgc_cat = BGC_LABEL) %>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+
+# match the column for map unit based on key 
+# select the target column using the mapkey if needed: 
+map.key.sub <- map.key %>%
+      dplyr::select(BaseMapUnit, MapUnit) %>%
+      distinct()
+  
+tpts <- tpts %>% left_join(map.key.sub, by = c("mapunit1" = "BaseMapUnit")) %>%
+    left_join(map.key.sub, by = c("mapunit2" = "BaseMapUnit")) %>%
+    dplyr::select(-mapunit1, -mapunit2) %>%
+    dplyr::rename("mapunit1" = MapUnit.x,
+                  "mapunit2" = MapUnit.y) %>%
+    dplyr::select(mapunit1, mapunit2, everything())
+
+  
+# filter for forest or non_forest points as required
+tpts <- tpts %>%
+  filter(fnf == "forest") %>% 
+  dplyr::select(-fnf)
+
+tpts <- tpts %>%
+    dplyr::mutate(target = as.factor(mapunit1),
+                          target2 = as.factor(mapunit2))
+# filter columns
+mpts <- tpts %>%
+     dplyr::select(target, target2, bgc_cat, comments, x, y)# %>%
+  #st_as_sf(., coords = c("x","y"))
+
+mptsxy <- mpts %>% dplyr::select(x, y)
+names(key) = c("map", ".pred_class")
+
+mpts <- cbind(mpts, map = raster::extract(mapof, mptsxy)) 
+
+mpts <- mpts %>% left_join(key)
+
+data <- mpts %>% dplyr::select(target, target2, .pred_class)
+
+
+```
+
+## Predicted vs Field Sampling
+
+```{r accuracy plots Buck, echo = FALSE, warning = FALSE, message = FALSE}
+target = as.data.frame(table(data$target)) %>% mutate(type = "transect")
+pred <- as.data.frame(table(data$.pred_class))%>% mutate(type = "pred")
+
+totals <- bind_rows(target, pred)
+
+pprop <- ggplot (data = totals, aes(x =Var1, y = Freq, fill = type)) + 
+  geom_bar(stat =  "identity", position = "dodge",color = "black") + 
+#  theme(axis.text.x = element_text(angle = 90)) + 
+  xlab("site series")+
+  ylab("type")+
+  theme_pem() + 
+  scale_fill_discrete_sequential(palette = "Light Grays")+
+  theme(axis.text.x = element_text(angle = 90)) 
+#  geom_text(aes(label= c(paste0(x," (", round(prop,0),")"))), color="black",position = position_stack(0.5), size = 2)+
+#  theme(legend.position = "None")
+
+pprop
+
+# generate spatially explicit results for primary and prime/alternate
+xx <- data %>% tabyl(target, .pred_class)
+xy <- pivot_longer(xx, cols = !target) 
+
+knitr::kable(xx)
+#xy
+
+```
+
+
+
+```{r full accuracy metrics Buck, echo = FALSE, eval = TRUE}
+# calculate the accuracy metrics 
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic.csv")) %>%
+  dplyr::select(c(target, Pred, fVal))
+  
+fMat <- data.table(fMat)
+
+#2) calculate aspatial metrics (overall and mapunit % correct)
+
+ ###harmonize levels
+  targ.lev <- levels(data$target)
+  pred.lev <- levels(data$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  data$target <- factor(data$target, levels = levs)
+  data$.pred_class <- factor(data$.pred_class, levels = levs)
+
+  acc_mu <- acc_metrix(data)
+  
+```
+  
+### Buck accuracy metrics
+
+```{r, echo = FALSE}
+## Generate graphs - overall accuracy
+bsRes <- acc_mu %>%
+    mutate(across(where(is.numeric), ~ replace_na(.,0)))
+
+df_all <- bsRes %>%
+   group_by(target) %>%
+   dplyr::select(target, trans.tot, pred.tot, trans.sum) %>%
+    dplyr::summarise(across(where(is.numeric), sum)) %>%
+    rowwise()%>%
+  mutate(pred.ratio = pred.tot - trans.tot,
+         pred.obs.pc = (pred.ratio/trans.tot) * 100) %>%
+   mutate(pred.obs.pc = ifelse(pred.tot == 0, -100, pred.obs.pc),
+          pred.obs.type = ifelse(pred.obs.pc <0,"under predict", "over predict"),
+          pred.obs.total = ifelse(pred.obs.pc <0, pred.obs.pc*-1, pred.obs.pc)) %>%
+    ungroup()
+
+
+# Plot the top 20 iterations: 
+
+df_total <- df_all %>%
+        summarise(mu_devation = sum(pred.obs.total),
+                  mu_var = var(pred.obs.total),
+                  mu_mean = mean(pred.obs.total),
+                  mu_sd = sd(pred.obs.total))
+
+ds_plot <- ggplot( df_all , aes(x=target, y=pred.obs.pc)) +
+           geom_bar(stat='identity',  aes(fill = pred.obs.type), width=.5) +
+          coord_flip(ylim =c(-100, 110))# +
+         #  labs(title = paste0("Top ranked balancing deviation plot :", bgcoi),
+              #  subtitle = "mean deviation (blue), standard deviation (black)") +
+           #facet_wrap(~ test_run)
+ds_plot
+
+```
+
+```{r, echo = FALSE}
+acc_sum_long <- bsRes %>%
+  dplyr::mutate(across(ends_with("overall"), ~.x *100)) %>% 
+  dplyr::mutate(across(ends_with("meanacc"), ~.x *100)) %>% 
+   dplyr::select(aspat_p_overall,  aspat_p_meanacc, 
+                  aspat_fp_overall,  aspat_fp_meanacc,
+                  spat_p_overall, spat_p_meanacc,
+                  spat_pf_overall,  spat_pf_meanacc, 
+                  aspat_pa_overall,  aspat_pa_meanacc,
+                  aspat_fpa_overall, aspat_fpa_meanacc,
+                  spat_pa_overall,  spat_pa_meanacc,
+                  spat_fpa_overall, spat_fpa_meanacc) %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "aspat") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial"))  %>%
+  mutate(type_model = case_when(
+    str_detect(accuracy_type, "_overall") ~ "area-weighted",
+    str_detect(accuracy_type, "_meanacc") ~ "unweighted")) %>%
+  mutate(accuracy_type_label = case_when(
+    str_detect(accuracy_type, "_p_") ~ "p",
+    str_detect(accuracy_type, "_pa_") ~ "pa",
+    str_detect(accuracy_type, "_fp_") ~ "fp",
+    str_detect(accuracy_type, "_pf_") ~ "fp",
+    str_detect(accuracy_type, "_fpa_") ~ "fpa")) %>%
+  mutate(type_label = paste0(type, "_", type_model))
+
+ 
+# set up order for plots 
+acc_sum_long$type_f = factor(acc_sum_long$type_label, levels = c("spatial_area-weighted" , "spatial_unweighted", "aspatial_area-weighted", 
+                                          "aspatial_unweighted"))
+
+                             
+acc_sum_long$accuracy_type_label = factor(acc_sum_long$accuracy_type_label, levels = c("p","pa", "fp","fpa"))
+
+
+# plot both the cv and test metrics
+p2 <- ggplot(aes(y = value, x = accuracy_type_label), data = acc_sum_long ) + 
+   geom_point()+ #(stat = "identity") +
+   facet_wrap(~type_f, scales = "free_x", nrow = 2) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Accuracy measures (median + quartiles): Combined BGCs") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100)+
+   theme_pem_facet()+ 
+   scale_fill_discrete_sequential(palette = "Light Grays")
+
+p2
+
+```
+  Accuracy per BGCs
+
+```{r, echo = FALSE}
+ ###harmonize levels
+ # originaldata <- data <- originaldata
+
+  sbsmc <- data[str_detect(data$target, "SBSmc"),]
+  essfmc <- data[str_detect(data$target, "ESSF"),]
+
+  data <- sbsmc
+
+  targ.lev <- levels(data$target)
+  pred.lev <- levels(data$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  data$target <- factor(data$target, levels = levs)
+  data$.pred_class <- factor(data$.pred_class, levels = levs)
+
+  acc_sbsmc <- acc_metrix(data) %>%
+    dplyr::mutate(bgc = "SBSmc2")
+  
+  # run essf accuracy metrics 
+  data <- essfmc
+
+  targ.lev <- levels(data$target)
+  pred.lev <- levels(data$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  data$target <- factor(data$target, levels = levs)
+  data$.pred_class <- factor(data$.pred_class, levels = levs)
+
+  acc_essfmc <- acc_metrix(data)%>%
+    mutate(bgc = "ESSFmc")
+  
+  acc_mu <- bind_rows(acc_essfmc, acc_sbsmc)
+  
+```
+  
+### Buck bgc accuracy metrics
+
+```{r, echo = FALSE}
+## Generate graphs - overall accuracy
+bsRes <- acc_mu %>%
+    mutate(across(where(is.numeric), ~ replace_na(.,0)))
+
+acc_sum_long <- bsRes %>%
+  dplyr::mutate(across(ends_with("overall"), ~.x *100)) %>% 
+  dplyr::mutate(across(ends_with("meanacc"), ~.x *100)) %>% 
+  dplyr::select(spat_p_overall, spat_p_meanacc, spat_pa_overall,  spat_pa_meanacc, 
+                aspat_p_overall, aspat_p_meanacc, aspat_pa_overall,
+                aspat_pa_meanacc, bgc) %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "aspat") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial"))  %>%
+  mutate(type_model = case_when(
+    str_detect(accuracy_type, "_overall") ~ "area-weighted",
+    str_detect(accuracy_type, "_meanacc") ~ "unweighted")) %>%
+  mutate(accuracy_type_label = case_when(
+    str_detect(accuracy_type, "_p_") ~ "p",
+    str_detect(accuracy_type, "_pa_") ~ "pa",
+    str_detect(accuracy_type, "_fp_") ~ "fp",
+    str_detect(accuracy_type, "_pf_") ~ "fp",
+    str_detect(accuracy_type, "_fpa_") ~ "fpa")) %>%
+  mutate(type_label = paste0(type, "_", type_model))
+
+ 
+# set up order for plots 
+acc_sum_long$type_f = factor(acc_sum_long$type_label, levels = c("spatial_area-weighted" , "spatial_unweighted", "aspatial_area-weighted", 
+                                          "aspatial_unweighted"))
+
+                             
+acc_sum_long$accuracy_type_label = factor(acc_sum_long$accuracy_type_label, levels = c("p","pa", "fp","fpa"))
+
+
+# plot both the cv and test metrics
+p2 <- ggplot(aes(y = value, x = accuracy_type_label, color = bgc), data = acc_sum_long ) + 
+   geom_point()+ #(stat = "identity") +
+   facet_wrap(~type_f, scales = "free_x", nrow = 2) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Accuracy measures (median + quartiles): by BGC") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100)+
+   theme_pem_facet()+ 
+   scale_fill_discrete_sequential(palette = "Light Grays")
+
+p2
+```
+
+
+## Wetzinka
+
+Wetzinkwa community forest comprises four bec variants (SBSmc2 and ESSFmc, ESSFwv, ICHmc1). We applied models from two study areas (ESSFmc and SBSmc2) from Deception and ESSFvw and ICHmc1 from Date Creek
+
+```{r read in Wetzinkwa, echo = FALSE, warning = FALSE, message= FALSE, eval = TRUE}
+# select the area to model 
+
+AOI <- "Wetzinkwa"
+AOI_dir <- file.path(paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+bec_shp <- st_read(file.path(shapes_dir, "bec.gpkg"), quiet = TRUE)
+bec_shp <- bec_shp %>%
+  mutate(BGC_LABEL = gsub("\\s+","", BGC_LABEL))
+
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+model_dir = "E:/temp/PEM_DATA/BEC_DevExchange_Work/Wetzinkwa_AOI/3_maps_analysis/models/forest/fore_mu_bgc/100"
+
+mrep = 100
+
+# set up function
+modeltype = "final_tmodel.rds"
+res_folder = "5m"
+
+rast_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", full.names = TRUE)
+```
+
+
+```{r run model Wetzinkwa, echo = FALSE, eval = FALSE, warning = FALSE, message= FALSE}
+bgcs = c("SBSmc2", "ESSFmc")
+
+for(bgc in bgcs){
+    mname = "fore_mu_bgc"
+    outDir <- file.path(out_dir, "forest", mname, mrep, bgc)
+    mod <- readRDS(file.path(model_dir, bgc, modeltype))
+    mcov <- names(mod$pre$mold$predictors)
+    
+    rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in%
+      tolower(mcov)] 
+
+    predict_map_tidy(
+      model = file.path(model_dir, bgc, modeltype),
+      cov = rast_list,
+      tilesize = 500,
+      outDir = outDir
+    )
+
+}
+
+# Merge the parts of maps together 
+map_dir = file.path(out_dir, "forest", mname, mrep)
+
+folders <- as.list(c("ESSFmc","SBSmc2"))
+
+# step 1:  set up a key for the combined map (includes all the units)
+rkey <- lapply(folders, function (f){
+  
+  keys <- read.csv(file.path(map_dir, f, "response_names.csv")) %>%
+    mutate(model  = f)
+})
+
+rkey <- do.call("rbind", rkey)
+rkey <- rkey %>% dplyr::mutate(map.response = seq(1:length(x)))
+
+# Step 2: For each bgc, filter and mask the raster map and update key if needed
+
+combo_map <- lapply(folders, function(f){
+  
+#  f <- folders[[2]]
+  
+  rtemp <- raster(file.path(map_dir, f, "mosaic.tif"))
+  
+  rtemp[is.na(rtemp[])] <- 0 
+  
+  # filter to only predict over bgc
+  bec_filter <- bec_shp %>%
+    filter(BGC_LABEL == f) %>%
+    dplyr::select(BGC_LABEL) 
+    
+  rtemp <- raster::mask(rtemp, as(bec_filter,'Spatial'))
+  
+  subkey <- rkey %>% dplyr::filter(model == f) %>%
+    mutate(mosaic = as.numeric(rownames(.)))
+
+   # check if the key matches or needs reclassification 
+  if (isTRUE(unique(subkey$mosaic == subkey$map.response))) {
+    
+    print("matching key")
+  
+  } else {
+    
+    print("updating key")
+ 
+    m <- subkey %>%
+      dplyr::mutate(to = as.numeric(X), 
+              from = as.numeric(X)+1) %>%
+      dplyr::select(to, from, map.response) 
+      
+    reclm <-  as.matrix(m, ncol=3, byrow= TRUE)
+    rtemp <-  reclassify(rtemp, reclm, right = FALSE)#, include.lowest=TRUE)
+  
+  }
+  
+  rtemp <- reclassify(rtemp, cbind(-Inf, 0, NA), include.lowest=TRUE)
+  rtemp
+  
+})
+
+# join all the maps together
+
+#if(length(folders) == 3) {
+  
+  all_key <- merge(combo_map[[1]], combo_map[[2]], overlap=TRUE)
+ # all_key <- merge(all_key, combo_map[[3]], overlap = TRUE)
+
+#} 
+
+# tidy key and output maps
+rkey <- rkey %>% dplyr::select(x, model, map.response)
+       
+writeRaster(all_key, file.path(map_dir, "forest_combo_bgcs.tif"), overwrite = TRUE)
+
+write.csv(rkey, file.path(map_dir, "response_combo_bcgs_key.csv"))
+    
+```
+
+```{r, echo = FALSE, eval = TRUE}
+
+map_folder <- "E:\\temp\\PEM_DATA\\BEC_DevExchange_Work\\Wetzinkwa_AOI\\3_maps_analysis\\models\\forest\\fore_mu_bgc\\100"
+
+#aoi_of <- st_read()
+mapof <- raster(file.path(map_folder, "forest_combo_bgcs.tif"))
+plot(mapof)
+
+key <- read.csv(file.path(map_folder,  "response_combo_bcgs_key.csv")) %>% 
+  dplyr::select(c("X",'x'))
+#key
+
+get_counts <- function(mapof){
+  map1.df <- as.data.frame(mapof) %>%
+    filter(!is.na(.))
+  names(map1.df)= c("response")
+  return(map1.df)
+}
+
+map1.df <- get_counts(mapof) %>%
+  left_join(key, by = c("response" = "X")) %>%
+  dplyr::group_by(x) %>%
+  dplyr::summarise(response1 = length(response)) %>%
+  filter(!is.na(x))
+
+ppof <- ggplot (data = map1.df, aes(x =x, y = response1)) + 
+  geom_bar(stat =  "identity", position = "dodge") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  xlab("site series")+
+  ylab("pixal count")+
+  ggtitle("Wetzinkwa: predicted pixal type across entire study area")
+
+ppof
+
+
+```
+
+```{r intersect field and map values Wetzinkwa, eval = TRUE, echo = FALSE, warning=FALSE, message = FALSE}
+
+# intersect the actual data with the predicted data 
+
+indata <- file.path(AOI_dir, "1_map_inputs","trainingData", "clean", "s1_transect_all_pts.gpkg")
+
+tpts <- st_read(indata, quiet = TRUE) %>%
+  dplyr::select(mapunit1, mapunit2, comments)
+
+subzones <- unique(bec_shp$BGC_LABEL)
+subzones <- gsub("\\s+","",subzones )
+
+tpts  <- tpts %>%
+  cbind(st_coordinates(.)) %>%
+  mutate(fnf = ifelse(grepl(paste0(subzones, collapse = "|"), mapunit1), "forest", "non_forest")) %>%
+  st_join(st_transform(bec_shp[, "BGC_LABEL"], st_crs(.)), join = st_nearest_feature) %>%
+  st_drop_geometry() %>% 
+  dplyr::select(fnf, everything()) %>% 
+  dplyr::rename(bgc_cat = BGC_LABEL) %>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+
+# match the column for map unit based on key 
+# select the target column using the mapkey if needed: 
+map.key.sub <- map.key %>%
+      dplyr::select(BaseMapUnit, MapUnit) %>%
+      distinct()
+  
+tpts <- tpts %>% left_join(map.key.sub, by = c("mapunit1" = "BaseMapUnit")) %>%
+    left_join(map.key.sub, by = c("mapunit2" = "BaseMapUnit")) %>%
+    dplyr::select(-mapunit1, -mapunit2) %>%
+    dplyr::rename("mapunit1" = MapUnit.x,
+                  "mapunit2" = MapUnit.y) %>%
+    dplyr::select(mapunit1, mapunit2, everything())
+
+  
+# filter for forest or non_forest points as required
+tpts <- tpts %>%
+  filter(fnf == "forest") %>% 
+  dplyr::select(-fnf)
+
+tpts <- tpts %>%
+    dplyr::mutate(target = as.factor(mapunit1),
+                          target2 = as.factor(mapunit2))
+# filter columns
+mpts <- tpts %>%
+     dplyr::select(target, target2, bgc_cat, comments, x, y)# %>%
+  #st_as_sf(., coords = c("x","y"))
+
+mptsxy <- mpts %>% dplyr::select(x, y)
+names(key) = c("map", ".pred_class")
+
+mpts <- cbind(mpts, map = raster::extract(mapof, mptsxy)) 
+
+mpts <- mpts %>% left_join(key, by = "map")
+
+data <- mpts %>% dplyr::select(target, target2, .pred_class)
+
+data <- data %>% dplyr::filter(!is.na(.pred_class))
+
+```
+
+
+```{r, wetzinkwa accuracy, echo = FALSE, eval = TRUE}
+# calculate the accuracy metrics 
+library(janitor)
+library(data.table)
+
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic.csv")) %>%
+  dplyr::select(c(target, Pred, fVal))
+  
+fMat <- data.table(fMat)
+
+#2) calculate aspatial metrics (overall and mapunit % correct)
+
+ ###harmonize levels
+  targ.lev <- levels(data$target)
+  pred.lev <- levels(data$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  data$target <- factor(data$target, levels = levs)
+  data$.pred_class <- factor(data$.pred_class, levels = levs)
+
+  acc_mu_all <- acc_metrix(data)# %>%
+    #dplyr::mutate(bgc = "all")
+  
+ 
+  ## Generate graphs - overall accuracy
+bsRes <- acc_mu_all%>%
+    mutate(across(where(is.numeric), ~ replace_na(.,0)))
+
+acc_sum_long <- bsRes %>%
+  dplyr::mutate(across(ends_with("overall"), ~.x *100)) %>% 
+  dplyr::mutate(across(ends_with("meanacc"), ~.x *100)) %>% 
+  dplyr::select(spat_p_overall, spat_p_meanacc, spat_pa_overall,  spat_pa_meanacc, 
+                aspat_p_overall, aspat_p_meanacc, aspat_pa_overall,
+                aspat_pa_meanacc) %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "aspat") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial"))  %>%
+  mutate(type_model = case_when(
+    str_detect(accuracy_type, "_overall") ~ "area-weighted",
+    str_detect(accuracy_type, "_meanacc") ~ "unweighted")) %>%
+  mutate(accuracy_type_label = case_when(
+    str_detect(accuracy_type, "_p_") ~ "p",
+    str_detect(accuracy_type, "_pa_") ~ "pa",
+    str_detect(accuracy_type, "_fp_") ~ "fp",
+    str_detect(accuracy_type, "_pf_") ~ "fp",
+    str_detect(accuracy_type, "_fpa_") ~ "fpa")) %>%
+  mutate(type_label = paste0(type, "_", type_model))
+
+ 
+# set up order for plots 
+acc_sum_long$type_f = factor(acc_sum_long$type_label, levels = c("spatial_area-weighted" , "spatial_unweighted", "aspatial_area-weighted", 
+                                          "aspatial_unweighted"))
+
+                             
+acc_sum_long$accuracy_type_label = factor(acc_sum_long$accuracy_type_label, levels = c("p","pa", "fp","fpa"))
+
+
+# plot both the cv and test metrics
+p2 <- ggplot(aes(y = value, x = accuracy_type_label), data = acc_sum_long ) + 
+   geom_point()+ #(stat = "identity") +
+   facet_wrap(~type_f, scales = "free_x", nrow = 2) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Accuracy measures (median + quartiles): by BGC") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100)+
+   theme_pem_facet()+ 
+   scale_fill_discrete_sequential(palette = "Light Grays")
+
+p2
+  
+  
+  
+```
+
+```{r wetzinkwa models, echo = FALSE, eval = TRUE}
+#Accuracy per BGCs
+
+  sbsmc <- data[str_detect(data$target, "SBSmc"),]
+  essfmc <- data[str_detect(data$target, "ESSF"),]
+
+  targ.lev <- levels(sbsmc$target)
+  pred.lev <- levels(sbsmc$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  sbsmc$target <- factor(sbsmc$target, levels = levs)
+  sbsmc$.pred_class <- factor(sbsmc$.pred_class, levels = levs)
+
+  acc_sbsmc <- acc_metrix(sbsmc) %>%
+    dplyr::mutate(bgc = "SBSmc2")
+  
+  # run essf accuracy metrics 
+
+  targ.lev <- levels(essfmc$target)
+  pred.lev <- levels(essfmc$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  essfmc$target <- factor(essfmc$target, levels = levs)
+  essfmc$.pred_class <- factor(essfmc$.pred_class, levels = levs)
+
+  acc_essfmc <- acc_metrix(essfmc)%>%
+    mutate(bgc = "ESSFmc")
+  
+  acc_mu <- bind_rows(acc_essfmc, acc_sbsmc)
+    
+bsRes <- acc_mu %>%
+    mutate(across(where(is.numeric), ~ replace_na(.,0)))
+
+acc_sum_long <- bsRes %>%
+  dplyr::mutate(across(ends_with("overall"), ~.x *100)) %>% 
+  dplyr::mutate(across(ends_with("meanacc"), ~.x *100)) %>% 
+  dplyr::select(spat_p_overall, spat_p_meanacc, spat_pa_overall,  spat_pa_meanacc, 
+                aspat_p_overall, aspat_p_meanacc, aspat_pa_overall,
+                aspat_pa_meanacc, bgc) %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "aspat") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial"))  %>%
+  mutate(type_model = case_when(
+    str_detect(accuracy_type, "_overall") ~ "area-weighted",
+    str_detect(accuracy_type, "_meanacc") ~ "unweighted")) %>%
+  mutate(accuracy_type_label = case_when(
+    str_detect(accuracy_type, "_p_") ~ "p",
+    str_detect(accuracy_type, "_pa_") ~ "pa",
+    str_detect(accuracy_type, "_fp_") ~ "fp",
+    str_detect(accuracy_type, "_pf_") ~ "fp",
+    str_detect(accuracy_type, "_fpa_") ~ "fpa")) %>%
+  mutate(type_label = paste0(type, "_", type_model))
+
+ 
+# set up order for plots 
+acc_sum_long$type_f = factor(acc_sum_long$type_label, levels = c("spatial_area-weighted" , "spatial_unweighted", "aspatial_area-weighted", 
+                                          "aspatial_unweighted"))
+
+acc_sum_long$accuracy_type_label = factor(acc_sum_long$accuracy_type_label, levels = c("p","pa", "fp","fpa"))
+
+acc_sum_long <- distinct(acc_sum_long)
+
+# plot both the cv and test metrics
+p2 <- ggplot(aes(y = value, x = accuracy_type_label, color = bgc), data = acc_sum_long ) +
+   geom_jitter(width = 0.2)+
+   #geom_point()+ #(stat = "identity") +
+   facet_wrap(~type_f, scales = "free_x", nrow = 2) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Accuracy measures (median + quartiles): by BGC") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100)+
+   theme_pem_facet()+ 
+   scale_fill_discrete_sequential(palette = "Light Grays")
+
+p2
+```
+
+
+## Covariate Space Test 
+
+One consideration in projecting maps into new areas is the matching the same environmental space of the area(s) projected into. 
+
+To test the influence of this we review the top 4 covariates for each bgc unit from the Deception model and compare the range of values for each within Deception and for each of the areas the model was projected into. 
+
+Top Variables tested
+
+**SBSmc2**: 
+- rid_level
+- mrvbf2
+- open_neg
+- swi_twi
+- texture
+
+**ESSFmc**: 
+- rid_level
+- open_neg
+- twi
+- tpi
+- texture
+- swi_twi
+
+```{r check covar space, echo = FALSE}
+# SBSmc : read in the values for Deception: 
+
+mcov<- c("rid_level", "mrvbf2", "open_neg", "swi_twi", "texture") 
+mcov2 <- c("rid_level", "open_neg", "twi", "tpi", "texture") 
+
+# read in bec
+bec_shp <- st_read(file.path(shapes_dir, "bec.gpkg"), quiet = TRUE)
+
+
+summary_values <- function(aoi = "Deception", mcov = NULL, bgc = "SBS mc 2") {
+    
+    #aoi = "Deception"
+    #mcov = mcov 
+    #bgc = "SBS mc 2"
+  
+  # read in bec
+    bec <- st_read(file.path(paste0(aoi,"_AOI"), "0_raw_inputs", "base_layers","bec.gpkg"), quiet = TRUE) %>%
+      filter(BGC_LABEL == bgc)
+  
+   # convert to spatVect
+    bec_sv <- vect(bec)
+  
+  # read in raster 
+    rast_list <- list.files(file.path(paste0(aoi,"_AOI"),"1_map_inputs", "covariates","5m"), full.names = T)
+    
+    rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in%
+          tolower(mcov)] 
+    
+    dec_stack <- terra::rast(rast_list)
+    
+    # mask by bgc 
+    
+    dec_mask <- mask(dec_stack, bec_sv)
+    
+    dmin <- as.data.frame(global(  dec_mask, fun = "min", na.rm = T))
+    dmax <- as.data.frame(global(  dec_mask, fun = "max", na.rm = T))
+    dmean <- as.data.frame(global(  dec_mask, fun = "mean", na.rm = T))
+    
+    dsum <- cbind(dmin, dmax, dmean)
+    dsum <- dsum %>% mutate(bec = bgc, AOI = aoi)
+    dsum <- tibble::rownames_to_column(dsum, "covar")
+
+return(dsum)
+
+}
+
+
+dec_sbs <- summary_values(aoi = "Deception", mcov = mcov, bgc = "SBS mc 2")
+dec_essf <- summary_values(aoi = "Deception", mcov = mcov2, bgc = "ESSFmc")
+
+ # read in values for the other sites 
+of_sbs <- summary_values(aoi = "OldFort", mcov = mcov, bgc = "SBS mc 2") 
+ba_sbs <- summary_values(aoi = "Baboon", mcov = mcov, bgc = "SBS mc 2")
+bu_sbs <- summary_values(aoi = "Buck", mcov = mcov, bgc = "SBS mc 2")
+bu_essf <- summary_values(aoi = "Buck", mcov = mcov2, bgc = "ESSFmc")
+we_sbs <-summary_values(aoi = "Wetzinkwa", mcov = mcov, bgc = "SBS mc 2")
+we_essf <- summary_values(aoi = "Wetzinkwa", mcov = mcov2, bgc = "ESSFmc")
+
+sum_sbs <- rbind(dec_sbs, of_sbs, ba_sbs, bu_sbs, we_sbs) %>%
+  arrange(covar)
+
+sum_essf <- rbind(dec_essf, bu_essf, we_essf)%>%
+  arrange(covar) 
+
+```
+
+# SBSmc
+
+```{r, echo = FALSE}
+sum_sbs
+
+#install.packages("ggalt")
+library(ggalt)
+
+# health$Area <- factor(health$Area)
+gg <- ggplot(sum_sbs, aes(x=min, xend=max, y=AOI, group=AOI)) + 
+        facet_wrap(~covar, scales = "free")+ 
+        geom_dumbbell(color="#a3c4dc", 
+                      size=0.75)+#, 
+                      #point.colour.l="#0e668b") + 
+        #scale_x_continuous(label=percent) + 
+        labs(x=NULL, 
+             y=NULL, 
+             title="SBSmc2 TopCovariate Range")+
+        theme(plot.title = element_text(hjust=0.5, face="bold"),
+              plot.background=element_rect(fill="#f7f7f7"),
+              panel.background=element_rect(fill="#f7f7f7"),
+              panel.grid.minor=element_blank(),
+              panel.grid.major.y=element_blank(),
+              panel.grid.major.x=element_line(),
+              axis.ticks=element_blank(),
+              legend.position="top",
+              panel.border=element_blank())
+plot(gg)
+
+
+
+```
+
+# ESSFmc
+
+```{r}
+sum_essf
+
+# health$Area <- factor(health$Area)
+gg <- ggplot(sum_essf, aes(x=min, xend=max, y=AOI, group=AOI)) + 
+        facet_wrap(~covar, scales = "free")+ 
+        geom_dumbbell(color="#a3c4dc", 
+                      size=0.75)+#, 
+                      #point.colour.l="#0e668b") + 
+        #scale_x_continuous(label=percent) + 
+        labs(x=NULL, 
+             y=NULL, 
+             title="ESSFmc Top Covariate Range")+
+        theme(plot.title = element_text(hjust=0.5, face="bold"),
+              plot.background=element_rect(fill="#f7f7f7"),
+              panel.background=element_rect(fill="#f7f7f7"),
+              panel.grid.minor=element_blank(),
+              panel.grid.major.y=element_blank(),
+              panel.grid.major.x=element_line(),
+              axis.ticks=element_blank(),
+              legend.position="top",
+              panel.border=element_blank())
+plot(gg)
+
+
+```
+
+
+
+# Top covariates: 
+
+Brief description of calculation of covariates. 
+
+**Ridge_level:** 
+
+Valley depth is calculated as difference between the elevation and an interpolated ridge level. Ridge level interpolation uses the algorithm implemented in the 'Vertical Distance to Channel Network' tool. It performs the following steps:
+- Definition of ridge cells (using Strahler order on the inverted DEM).
+- Interpolation of the ridge level.
+- Subtraction of the original elevations from the ridge level.
+
+Module Vertical Distance to Channel Network
+This module calculates the vertical distance to a channel network base level. The algorithm consists of two major steps:
+1. Interpolation of a channel network base level elevation
+2. Subtraction of this base level from the original elevations
+
+
+**MRVBF2:** Measure of valley bottom flatness. Originally designed to identify valley bottoms as multiple scales based on DEM. 
+
+- First step is to convert slope to flatness (0 - 1). 
+- Generate elevation percentile. This is a ranking of the elevation of the cell in respect to the surrounding cells in a given radius. Low value = low in local landscape. First calculation is in respect to 3 cell radius and parameters. 
+- Flatness or lownes s >0.5 = low enough to be considered valley bottom. 
+- Product of flatness or lowness >0.25 = valley bottom. 
+_ Second stage - repeat calculation on original DEM but increase radius by factor of 3, lower slope threshold value (half of original slope threshold set). 
+
+
+
+**open_negative:**
+
+Topographic openness expresses the dominance (positive) or enclosure (negative) of a landscape location. See Yokoyama et al. (2002) for a precise definition. Openness has been related to how wide a landscape can be viewed from any position. It has been proven to be a meaningful input for computer aided geomorphological mapping.
+
+Openness is an angular measure of the relation between surface relief and horizontal distance. For angles less than 90", it is equivalent to the internal angle of a cone, its apex at a DEM location, constrained by neighboring elevations within a specified radial distance. Openness incorporates the terrain line-of-sight, or viewshed, concept and is calculated from multiple zenith and nadir angles-here along eight azimuths. Openness has two viewer perspectives. Positive values, expressing openness above the surface, are high for convex forms, whereas negative values describe this attribute below the surface and are high for concave forms. Openness values are mapped by gray-scale tones. The emphasis of terrain convexity and concavity in openness maps facilitates the interpretation of landforms on the Earth's surface and its seafloor, and on the planets, as well as features on any irregular surface-such as those generated by industrial 
+
+Refs
+https://www.semanticscholar.org/paper/Visualizing-topography-by-openness%3A-A-new-of-image-Shirasawa-Yokoyama/c3d9a561fdb9e8c34a2b79152aea72b46090bb2e
+http://www.saga-gis.org/saga_tool_doc/7.2.0/ta_lighting_5.html
+
+**swi_twi:**
+
+The 'SAGA Wetness Index' is, as the name says, similar to the 'Topographic Wetness Index' (TWI), but it is based on a modified catchment area calculation ('Modified Catchment Area'), which does not think of the flow as very thin film. As result it predicts for cells situated in valley floors with a small vertical distance to a channel a more realistic, higher potential soil moisture compared to the standard TWI calculation.
+
+**texture:**
+
+Iwahashi, J. & Pike, R.J. (2007): Automated classifications of topography from DEMs by an unsupervised nested-means algorithm and a three-part geometric signature. Geomorphology, Vol. 86, pp. 409–440.
+
+http://www.saga-gis.org/saga_tool_doc/7.6.0/ta_morphometry_20.html
+
+**twi:**
+Calculation of the slope and specific catchment area (SCA) based Topographic Wetness Index (TWI).
+
+https://onlinelibrary.wiley.com/doi/abs/10.1002/hyp.3360050103
+
+**tpi:** 
+
+Topographic Position Index (TPI) calculation as proposed by Guisan et al. (1999).
+Topographic position indices are calculated at
+each cell of the DEM by calculating the difference between the elevation of the cell and the mean elevation
+calculated for all cells of a moving circular window
+centered on the cell of interest. The radius is set by user to determine the moving window range.  
+Such indices are a flexible way to define the relative position of a location along a topographic gradient (ridge top, middle
+slope or valley)
+
+file:///C:/Users/genev/Downloads/GLM_versus_CCA_Spatial_Modeling_of_Plant_Species_D.pdf
+
+
+
+
+

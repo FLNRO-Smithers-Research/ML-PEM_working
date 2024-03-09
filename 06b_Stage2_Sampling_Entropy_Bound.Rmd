@@ -1,0 +1,753 @@
+---
+title: "Stage2 Sampling_Entropy"
+author: "Will mackenzie, Gen Perkins, Colin Chisolm"
+date: "19/06/2020"
+output: html_document
+---
+
+## Stage 2 sampling
+
+To assess the most efficient method to conduct stage 2 sampling, various methods will be testeds. These include
+
+* purposeful sampling - to target uncommon sites
+* entropy layer sampling - (UNBC) target sampling where model entropy values are high 
+* map uncertainty - (hengle) 
+
+
+In Aleza lake study area, stage 2 was sampled using the entropy surface, generated in script 5a, to target areas of uncertainty from the map. A threshold of 0.4 was set for inclusion based on a histogram of entropy values. 
+
+For initial testing at Deception we employed that same method as used in Aleza with the following exeptions:
+
+- limit sampling to highest 25% entropy areas ( >0.75).
+- sampling of clhs is based on the probability layers (ie environmental space of each of the predicted probability surface for the classes within the subzone, ie prob SbSmc2/01, SBSmc2/02, etc.)
+
+To be tested: 
+
+- the clhs point is the POC of the triangle (rather than centre of )
+- rotation of triangle is based on highest diversity Shannon index
+
+
+
+
+### Set Up
+
+```{r, echo= TRUE, results='hide'}
+## Libaries 
+
+library(tidyverse)
+library(knitr)
+library(raster)
+library(sf)
+library(clhs)
+library(gdistance)
+#library(RStoolbox)
+library(parallel)
+library(doParallel)
+#library(tmap)
+library(stars)
+library(plyr)
+library(RColorBrewer)
+library(viridis)
+library(caret)
+library(randomForest)
+library(rgdal)
+library(rasterVis)
+library(LearnGeom)
+library(fasterize)
+#library(bfastSpatial)
+#remotes::install_github("dutri001/bfastSpatial")
+
+#source(here::here('Additional_functions', '91_TransectGenFunctions.R'))
+
+```
+
+
+# read in the data setup files: 
+
+```{r parameters}
+
+#AOI <- "Deception"
+AOI <- "BoundaryTSA"
+
+map_res <- 5
+
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_path <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+stage1_dir <- file.path(AOI_dir, "2_sample_design","stage1_StudyDesign")
+stage2_dir <- file.path(AOI_dir, "2_sample_design","stage2_StudyDesign")
+
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+  
+model.folder.out <- file.path(out_dir, "forest/fore_mu_bgc/2/")
+#model.folder.out <- file.path(out_dir, "forest/fore_mu_bgc/SBSmc2/_uc/predicted")
+
+#acost_file <- "AccumCostSurface.tif
+acost_file <- "accum_cost_mask.tif"
+
+```
+
+
+
+```{r source transect functions}
+## load functions stored in...
+
+source(here::here('_functions', '_Transect_Functions.R'))
+
+
+```
+
+
+# read in or create cost layer: 
+
+Testing the refinement of the cost layer - this needs more work so using the previously generated cost layer for the stage2 run. 
+
+
+```{r}
+
+if(file.exists(file.path(out_path, "acost.tif"))){
+  
+  print ("Using previously generated accumulated cost layers")
+  
+  accum_cost <- raster(file.path(stage1_dir, acost_file)) 
+  
+
+#  # read in other files required:
+#  #load(file.path(in_cost, study.area, "tmp/roads.rds"))
+#  #load(file.path(in_cost, study.area, "tmp/area.rds"))
+#  
+} else {
+  
+  print ("You are generating a new accumulated cost surface, 
+         this may take a moment")
+  
+  cost_res <- "25m"
+  
+   # read in boundary and create start pt 
+#shapes_path <- "C:/Users/kirid/Desktop/PEMData"
+  boundary <- st_read(file.path(shapes_path, "AOI.gpkg"))
+ 
+   # read in slope data
+  slope_raster <-  grep("^slope.tif", list.files(file.path(cov_dir, cost_res)))
+  
+  slope <- raster(list.files(file.path(cov_dir, cost_res), full.name = TRUE)[slope_raster])
+ #slope <- raster(paste0(shapes_path,"/slope.tif"))
+  cost <- tan(slope)*100
+  cost[cost < 25] <- 33  # base cost per pixal 
+  cost <- cost*(1+((cost-25)*.02))
+  names(cost)<- "cost"
+  
+  ## assign cost per road type 
+   roads <- st_read(file.path(shapes_path, "road_network_detail.gpkg")) %>% 
+     st_set_crs(3005) %>%
+     st_zm() %>% 
+     st_buffer(25) %>%
+     mutate(cost = case_when(
+       road_surface == "mainline" ~ 0.0003125, 
+       road_surface == "blkroad" ~ 0.000625,   # non primary road 
+       road_surface == "quad" ~ 0.00125,                   # Quad
+       road_surface == "walk" ~ 0.00833)) %>%
+     st_cast("MULTIPOLYGON")%>%
+     dplyr::select(-road_surface)
+   
+   #st_write(roads, file.path(shapes_path, "road_network_detail.gpkg"))
+   
+  rast_rd <- fasterize(roads, slope, field = "cost")
+
+  cost <- merge(rast_rd, cost)
+  
+  # exclude cutblocks and age class 1 and 2 # extracted from VRI 
+  #  walking old forest and young clearcut = .0125 (2 km/hr)
+  
+  cutblocks_young <- st_read(file.path(shapes_path, "vri_lt15_extra.gpkg")) %>% 
+    st_set_crs(3005) %>%
+    mutate(cost = .0125) %>% 
+    dplyr::select(cost) %>% 
+    st_buffer(dist = 150)  %>%
+    st_cast("MULTIPOLYGON")
+
+  cutblocks_old <- st_read(file.path(shapes_path, "vri_gt120.gpkg")) %>% 
+    st_set_crs(3005) %>%
+    mutate(cost = .0125) %>% 
+    dplyr::select(cost) %>% 
+    st_buffer(dist = 150)  %>%
+    st_cast("MULTIPOLYGON")
+  
+  cutblock <- bind_rows(cutblocks_young, cutblocks_old)
+  
+  cutblock <- fasterize(cutblock, slope, field = "cost")
+  
+  cost <- merge(cutblock, cost)
+  
+  #walking young plantation (20-60) = .01667 (1.5 km/hr)
+    cutblocks_plan <- st_read(file.path(shapes_path, "vri_15_40.gpkg")) %>% 
+    st_set_crs(3005) %>%
+    mutate(cost = .01667) %>% 
+    dplyr::select(cost) %>% 
+    st_buffer(dist = 150)  %>%
+    st_cast("MULTIPOLYGON")
+  
+  cutblocks_plan <- fasterize(cutblocks_plan, slope, field = "cost")
+  
+  cost <- merge(  cutblocks_plan, cost)
+
+    # get start points for cost layer 
+  cost_start_points <- st_read(file.path(shapes_path,"start_points.gpkg"))
+  
+  # To do: assign cost to start of point? 
+  
+  tr <- transition(cost, transitionFunction = function(x) 1/mean(x), directions = 8)
+  
+  acost <- accCost(tr, st_coordinates(cost_start_points))
+  
+
+  # reattribute cost per cutblock and add to the cost layer 
+  
+  # Add the young cutblocks and and assign a high cost 
+  
+  cutblocks_young <- st_read(file.path(shapes_path, "vri_lt15_extra.gpkg")) %>% 
+    st_set_crs(3005) %>%
+    mutate(cost = 3000) %>% 
+    dplyr::select(cost) %>% 
+    st_buffer(dist = 150)  %>%
+    st_cast("MULTIPOLYGON")
+  
+  cutblocks_r <- fasterize(cutblocks_young, slope, field = "cost")
+  
+  #cutblocks <- cutblocks %>% mutate(cost = 3000)
+  
+  #cutblocks <- fasterize(cutblocks, slope, field = "cost")
+
+  #cutblocks <- merge(cutblocks, cutblocks_old)
+  
+  accum_cost <- merge(cutblocks_r, acost)
+   
+  writeRaster(accum_cost , file.path(stage2_dir, "acost.tif"), format = "GTiff", overwrite = TRUE)
+  
+  #write out temp R data 
+#  if (!dir.exists(file.path(in_cost, study.area,"tmp"))) dir.create(file.path(in_cost, study.area,"tmp"))
+
+  #accum_cost <- raster(file.path(out_path, "acost.tif"))
+  
+} 
+
+```
+
+Details on cost layer are indicated in script 3a_Stage1_sampleDesign.Rmd
+
+```{r}
+
+# alternate use of previosly generate cost surface
+
+cost_res <- "25m"
+
+# accum_cost <- raster(file.path(stage1_dir, "AccumCostSurface.tif")) 
+# names(accum_cost) <- "cost"
+
+ boundary <- st_read(file.path(shapes_path, "AOI.gpkg"))
+ 
+  # read in slope data
+  slope_raster <-  grep("^slope.tif", list.files(file.path(cov_dir, cost_res)))
+  
+  slope <- raster(list.files(file.path(cov_dir, cost_res), full.name = TRUE)[slope_raster])
+
+
+
+
+```
+
+
+## Step 3. Create Exclusion Layer of No-Sample Areas
+
+We are placing cLHC locations as centre points for 250m per-side transect triangles. The radius of a circle that will encompass the triangle is 144m. Masking the spatial layers with 150m buffers around features we do not wish to traverse ensures the centre points from the cLHS will not result in traverses overrunning lakes, roads, or clearcuts. 
+We excluded clearcuts from the sample space to remove low certainty field calls. We also increased the buffer around roads to 175m to account for any wider right-of-ways. 
+
+
+```{r}
+
+# Read in masked exclusion layer 
+
+#zones = "IDFdm1"
+zones = "MSdm1"
+cost_name <- paste0(zones, "_", acost_file)
+cost_name <- gsub("mask.tif", "masked.tif", cost_name)
+  
+bgc_filter <- st_read(file.path(shapes_path, "bec.gpkg")) %>% 
+    dplyr::filter(MAP_LABEL == zones)
+
+accum_cost_masked <- raster(file.path(stage1_dir, cost_name)) 
+
+bc3005 = "+init=epsg:3005"
+accum_cost_masked = projectRaster(accum_cost_masked, crs = bc3005, 
+                                 method = "bilinear"#"ngb"
+                                 )
+
+#accum_cost_masked5 <- disaggregate(accum_cost_masked, 5)
+
+
+# # use stars: not working correctly yet 
+# accum_cost_masked <- read_stars(file.path(stage1_dir, cost_name))
+# st_crs (accum_cost_masked) <- 3005
+# 
+# # 25m resolution - calculate the change to make to 5m resolution 
+# #xdim = dim(accum_cost_masked)[1]*5
+# #ydim = dim(accum_cost_masked)[2]*5
+# 
+# rasterio = list(nXSize = 25, nYSize = 25, 
+#                 nBufXSize = 125, nBufYSize = 125,
+#                 resample = "nearest_neighbour", 
+#                 bands = 1)
+# 
+# x = read_stars(file.path(stage1_dir, cost_name), RasterIO = rasterio)
+# st_crs (x) <- 3005
+
+
+mask_poly <- st_read(file.path(stage1_dir, paste0(zones, "_mask_poly.gpkg"))) %>%
+    st_transform(3005) 
+
+# or 
+
+# Generate exclusion layer 
+
+waterbodies <- st_read(file.path(shapes_path, "vri_lakes.gpkg")) 
+waterbodies_buff <- st_buffer(waterbodies, dist = 150) # lake
+roads_buff <- st_read(file.path(shapes_path, "road_network_detail.gpkg")) %>% 
+     st_set_crs(3005) %>%
+     st_zm() %>%
+     st_buffer(dist = 175)
+
+#cutblocks
+
+cutblocks_young <- st_read(file.path(shapes_path, "vri_lt15_extra.gpkg")) %>% 
+    st_set_crs(3005) %>%
+    mutate(cost = 3000) %>% 
+    dplyr::select(cost) %>% 
+    st_buffer(dist = 150)  %>%
+    st_cast("MULTIPOLYGON")
+
+# set up the bgc to mask for each subzone 
+zone_names <- "SBSmc2"
+
+bgc.sf = st_read(file.path(shapes_path, "bec_edited.gpkg"), quiet = TRUE) %>%
+  st_transform(3005) %>%
+  dplyr::select(MAP_LABEL) %>%
+  filter(MAP_LABEL %in% zone_names) %>%
+  st_buffer(., dist = -150)
+     
+accum_cost_masked <- mask(accum_cost, roads_buff, inverse = TRUE) %>% 
+  mask(waterbodies_buff, inverse = TRUE) %>%
+  mask(bgc.sf) %>%
+  mask(cutblocks_young , inverse = TRUE)
+
+##create polygon of buffered area to increase speed
+mask_poly <- 1 + (accum_cost_masked *0) %>% st_as_stars(., crs = st_crs(3005))
+
+mask_poly <- st_as_sf(mask_poly, as_points = FALSE, merge = TRUE, na.rm = TRUE, use_integer = TRUE) %>%
+     st_transform(3005)
+
+```
+
+```{r}
+# Stack rasters of probability 
+model.folder.out <- file.path(out_dir, "forest/fore_mu_bgc/2/")
+model.folder.out = file.path(model.folder.out, zones)
+
+list.files(model.folder.out)
+
+covs <- list.files(file.path(model.folder.out, "predicted"), pattern = ".tif", full.names = TRUE)
+
+pred_covs <- stack(covs[grep("^prob.", basename(covs))])
+pred_covs <- projectRaster(pred_covs, crs = bc3005, 
+                                 method = "bilinear"#"ngb"
+                                 )
+xxxx <- pred_covs
+
+    # # TESTING: 
+    # # # alternate test for covariates; # use a short list of other rasters 
+    #  anc_layers <- c("mrvbf", "dem", "tpi", "twi", "aspect","dah", 
+    #                  "gencurve","neg","pos","slope")
+    #  rast_list <- list.files(file.path(paste(cov_dir, "25m", sep = "/")), pattern = ".tif$", full.names = TRUE)
+    #  rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in% tolower(anc_layers)]
+    #  pred_covs <- stack(rast_list)
+    # # pred_covs <- projectRaster(pred_covs, cost)      
+    # cost <- projectRaster(cost, pred_covs)
+    # pred_covs <- stack(pred_covs, cost) 
+    # entropy<- projectRaster(entropy, pred_covs)
+    # # mask the covariates by entropy and no sample exclusion area
+    # anc_layers_masked <- mask(pred_covs, entropy) %>%
+    #   mask(cost)
+     
+     
+# read in entropy crop entropy to 0.75 and sieve 
+
+#https://rdrr.io/github/dutri001/bfastSpatial/
+entropy <- raster(list.files(model.folder.out, pattern = "entropy.tif$", full.names = TRUE))
+
+# reproject if needed: 
+entropy <- projectRaster(entropy, crs = bc3005, 
+                                 method = "bilinear" )#"ngb"
+                                 
+# mask the entropy layer by bgc then create a histogram 
+r <- raster::mask(entropy, as(bgc_filter,'Spatial'))
+entropy = r
+
+hist(entropy)
+#entropy[entropy == 0] <- NA
+
+## filter entropy to the most uncertain level 
+#entropy <- raster(covs[grep("^entropy.", basename(covs))])
+#entropy[entropy <= 0.75] <- NA # deception cut off
+
+# boundary entropy is normal distribution (-0.)
+#entropy[entropy <= -0.75] <- NA # IDFdm1
+entropy[entropy <= 5] <- NA # MSdm1
+hist(entropy)
+#entropy05 <- entropy[entropy<= -0.5] <- NA  # test other sampling options 
+#entropy075 <- entropy[entropy<= -0.75] <- NA
+
+writeRaster(entropy, file.path(stage2_dir, "MSdm1_entropy.tif"), format = "GTiff", overwrite = TRUE)
+
+remotes::install_github("dutri001/bfastSpatial")
+#https://rdrr.io/github/dutri001/bfastSpatial/
+library(bfastSpatial)
+entrop_5000 <- areaSieve(entropy, thresh = 5000, directions = 8, verbose = T, cores = detectCores()-2)
+
+writeRaster(entrop_5000 , file.path(stage2_dir, "MSDm1__entropy_sieved.tif"), format = "GTiff", overwrite = TRUE)
+
+entropy_5000 <- raster(list.files(stage2_dir, "MSDm1_entropy_sieved.tif", full.names = TRUE))
+
+entropy <- entropy_5000
+entropy <- crop(entropy, pred_covs)
+
+# prep cost layer: 
+cost <- disaggregate(accum_cost_masked, 5)
+cost <- crop(cost, pred_covs)
+pred_covs <- crop(pred_covs, cost)
+cost <- projectRaster(cost, entropy)
+names(cost) <- "cost"
+
+pred_covs <- stack(pred_covs, cost) 
+pred_covs <- red_covs
+
+# mask the covariates by entropy and no sample exclusion area
+anc_layers_masked <- mask(pred_covs, entropy) %>%
+  mask(cost)
+
+
+writeRaster(anc_layers_masked, file.path(stage2_dir, "MSDm1_anc_layers_masked.tif"), format = "GTiff", overwrite = TRUE)
+
+
+```
+
+
+# CLHS samples 
+
+Generate clHS samples based on cost layer along with sampling space for probability of classes within the subzone. 
+
+```{r}
+
+bgc_choose = "IDFdm1"
+#bgc_choose = "MSdm1"
+
+transect_length <- 250 # Define the length of triangle on each side
+paired_distance <- 100 
+subzone = bgc_choose
+num_samples <- 20
+
+# Set parameters for sliced cLHS 
+slice_size <- 5
+
+# radius of exclusion around points to prevent overlap of secondary transects
+centroid_distance <- 2*(transect_length/sqrt(3)) + paired_distance # Gives distance between the centroids of 2 paired triangles
+
+rad_exclusion <- centroid_distance*3 # Gives the minimum distance cLHS points will be located
+num_slices <- round(num_samples/slice_size)
+
+s <- sampleRegular(anc_layers_masked , 
+                   size = 50000, 
+                   sp = TRUE) # sample raster
+s <- s[!is.na(s$cost),] # remove cells outside of area
+
+length(s)
+  
+# # ##radius of exclusion around points to prevent overlap of secondary transects
+# t1 <- clhs(s, size = slice_size, 
+#              iter = 100, 
+#              simple = F, 
+#              progress = T, 
+#              cost = 'cost')#,
+#   
+#   sPoints <- t1$sampled_data
+#   sPoints$slice_num <- 1
+# 
+#   # # loop to create all slices
+# for(i in 2:num_slices){ ###loops and create new slices
+#     # i = 5
+#     for(pt in rownames(sPoints@data[sPoints$slice_num == (i-1),])){ ##remove data in zone of exclusion
+#       tDist <- try(spDistsN1(pts = s, pt = s[pt,]))
+#       if(class(tDist) != "try-error") s <- s[tDist > rad_exclusion | tDist == 0,]
+#       else{
+#         i <- i - 1
+#         sPoints <- sPoints[sPoints$slice_num != i,]
+#       }
+#     }
+#     temp <- clhs(s,
+#                  size = slice_size + length(which(rownames(s@data) %in% rownames(sPoints@data))),
+#                  iter = 100,
+#                  simple = F,
+#                  progress = T,
+#                  cost = 'cost', 
+#                  include = which(rownames(s@data) %in% rownames(sPoints@data)))
+#     temp <- temp$sampled_data
+#     temp <- temp[!rownames(temp@data) %in% rownames(sPoints@data),] # remove data from previous slices
+#     temp$slice_num <- i
+#     sPoints <- rbind(sPoints, temp) ## add slice to set
+#   }
+#   
+#   
+ 
+  sample_points <- st_sf(st_sfc()) %>% st_set_crs(3005)
+  
+  for(i in 1:num_slices){ # For each slice, perform cLHS (if there is sampleable area left from previous slices)
+    # testing
+  #   i <- 1
+    if(nrow(sample_points) < slice_size*i){
+      
+      clhs_slice <- clhs(s,
+                         size = slice_size,
+                         iter = 100,
+                         simple = FALSE,
+                         progress = TRUE,
+                         cost = "cost") # Run cLHS on the sampleable area
+      
+      clhs_sampled <- st_as_sf(clhs_slice$sampled_data) %>% mutate(slice_num = i)
+      
+      for(j in 1:nrow(clhs_sampled)){ # Filter the close together samples from the cLHS run
+        #j = 1
+        if(!is.na(clhs_sampled[j, ])){
+          distances <- data.frame(distance = st_distance(clhs_sampled, clhs_sampled[j, ])) %>%
+            rownames_to_column() %>%
+            mutate_all(as.numeric) %>%
+            dplyr::filter(distance > rad_exclusion | distance == 0)
+          clhs_sampled <- clhs_sampled[distances$rowname, ]
+        }
+      }
+      #clhs_sampled_buff <- st_buffer(clhs_sampled, dist = rad_exclusion) # Extract and buffer the cLHS points
+      #anc_layers_masked <- mask(anc_layers_masked, clhs_sampled_buff, inverse = TRUE) # Mask the sampleable area
+      #sample_points <- bind_rows(sample_points, clhs_sampled) # Update the sample dataframe
+      sample_points <- rbind(sample_points, clhs_sampled)
+    }
+  }
+    
+  sample_points <- st_as_sf(sample_points)
+
+### add index values
+rownames(sample_points) <- NULL
+sample_points$subzone <- bgc_choose 
+unique_slices <- as.data.frame(table(sample_points$slice_num))
+
+for(i in 1:length(unique(sample_points$slice_num))){ # Adds appropriate slice number for each sample depending on the slice
+  j <- unique(sample_points$slice_num)[i]
+  if(j == unique_slices[i, 1]){
+    j <- which(sample_points$slice_num == j)
+    for(k in 1:length(j)){
+      l <- j[k]
+      sample_points[l, "slice_site"] <- k
+    }
+  }
+}
+
+sample_points <- mutate(sample_points, total = 1:nrow(sample_points)) %>% 
+  mutate(id = paste0(subzone, "_", slice_num, ".", slice_site, "_", total)) %>% 
+  dplyr::select(names(.)[!(names(.) %in% names(anc_layers_masked))])
+
+
+```
+
+Rotate through all possible sets of triangle per clhs and select the rotation in which the entropy is highest value. 
+
+```{r}
+
+# read in points: 
+sample_points <- st_read(file.path(stage2_dir, "entropy", "IDFdm1", "entropy_pts.shp")
+)
+
+
+cLHS_points <- sample_points
+
+# build a set of triangles around the clhs with various rotations. Select the rotation which intersects with the highest amount of "entropy uncertainty" 
+
+cLHS_tris <- st_sf(st_sfc()) %>% st_set_crs(3005)
+
+for(i in 1:nrow(cLHS_points)) {
+      #i <- 1 ## for testing
+      print(paste("Looping thru:", i))
+
+## Extract the 1st point
+      # point <- cLHS_points[i,] %>% dplyr::select(geometry)
+      point <- cLHS_points[i,] %>% dplyr::select(id)
+      point <- cbind(point, st_coordinates(point))
+      #point$id <- i
+      
+      # build a triangle 
+      tri <- Tri_build(point$id, point$X, point$Y)  ## create inital Triangle
+      
+      # build set of triangles on every rotation 
+      triSet <- tri_set(point, tri) 
+
+      # overlay and extract sum entropy values 
+      #triSet <- max_entropy(entropy, triSet)
+       
+      #cLHS_tris <- bind_rows(cLHS_tris, triSet)
+      cLHS_tris <- rbind(cLHS_tris, triSet)
+      
+}       
+      #cLHS_tris <- cLHS_tris[,-1]
+      cLHS_tris <- st_as_sf( cLHS_tris, crs = 3005)
+      
+      # select best based on maximum entropy value
+      cLHS_tri  <- cLHS_tris  %>%
+         group_by(id) %>%
+          slice(which.max(Entropy_Sum)) %>%
+          ungroup() 
+
+      # n = 10
+   
+# all points <- cLHS_points,       
+      
+        
+```
+
+
+# Generate a paired point. 
+
+A second sample point will be select by generating points at 8 compass directions then selecting the triangle with the highest entropy and lowest cost within the masked sample area. 
+
+
+```{r}
+
+# First, create 8 cardinal-ordinal points and mask
+sample_points_clhs <- st_as_sf(cLHS_points) %>% 
+  st_transform(3005) 
+
+rotation_angles <- seq(0, 315, 45) # Rotation degrees 
+
+#sample_points_rotations <-  st_as_sf(sample_points) #sample_points_clhs[1,]
+sample_points_rotations <- st_sf(st_sfc()) %>% st_set_crs(3005)
+
+for(i in 1:nrow(sample_points_clhs)){
+# i = 1
+  pnt <- sample_points_clhs[i,]
+  rotated_points <- pairedPoint(pnt, centroid_distance, rotation_angles) %>%  # 8 points 400 m away
+    st_transform(3005) %>% 
+    st_join(mask_poly, join = st_intersects) # %>%  # Remove points not in buffered area
+    #dplyr::filter(!is.na(acost)) 
+  sample_points_rotations <- rbind(sample_points_rotations, rotated_points)
+}
+
+sample_points_rotations <- st_as_sf(sample_points_rotations, crs = 3005) %>%
+  mutate(rotation = mapvalues(Rotation, rotation_angles, c("N", "NE", "E", "SE", "S", "SW", "W", "NW"))) %>%
+  filter(!is.na(Rotation)) ##%>% 
+
+
+# write out all points - 
+sample_points_clhs <- sample_points_clhs %>% 
+  mutate(rotation = "CLHS")
+
+sample_points_rotations <- sample_points_rotations %>% 
+  dplyr::select(-c(acost))#layer))
+
+all_points <- bind_rows(sample_points_clhs, sample_points_rotations) %>%
+  mutate(id = paste0(id, "_", rotation)) %>% 
+  dplyr::select(id, geometry) %>%
+  st_as_sf()
+
+# drop row names
+rownames(all_points) <- c()
+
+
+st_write(all_points, file.path(stage2_dir, "MSdm1_all_pointsV2.gpkg"),delete_layer = TRUE)
+
+st_write(cLHS_points, file.path(stage2_dir, "MSdm1_clhs_pointsV2.gpkg"),delete_layer = TRUE)
+
+
+#to_remove <- c("SBSmc2_1.3_3", "SBSmc2_3.1_6","SBSmc2_3.4_9", "SBSmc2_3.5_10", #"SBSmc2_4.2_12", "SBSmc2_5.1_16", "SBSmc2_5.3_18")
+
+
+
+```
+
+
+## Step 8. Generate Transects Around cLHS and Paired Points
+
+The cLHS and paired points are used as the __centre point__ for the 250m-per-side transect triangles. For Stage 1 sampling, we rotate each of the transects randomly. Alternatively, optimized rotation to maximize diversity of the traverse can be applied for other purposes such as map improvement sampling (Stage 2).
+
+
+```{r}
+
+# generate the triangles for all points and select the rotation with the highest entropy
+
+all_triangles <- st_sf(st_sfc()) %>% st_set_crs(3005)
+
+for(i in 1:nrow(sample_points_rotations)){
+  #i = 1
+  poc <- sample_points_rotations[i, ]
+ 
+  triangle <- Tri_build(id = poc$id, x =  st_coordinates(poc)[1], y =  st_coordinates(poc)[2])
+  random_rotation <- runif(1, min = 0, max = 360)
+  triangle <- rotFeature(triangle, poc, random_rotation)
+  
+   if(is.na(poc$rotation)){
+     triangle$id <- poc$id
+   } else {
+     triangle$id <- paste(poc$id, poc$rotation, sep = "_")
+   }
+  all_triangles <- rbind(all_triangles, triangle)
+}
+
+# extract the entropy values 
+
+# add entropy and cost values per triangle
+all_triangles_ent <- max_entropy(entropy, all_triangles)
+all_triangles_ent <- tri_cost(cost, all_triangles_ent)
+
+
+sample_points_slices <- sample_points_rotations %>% 
+  mutate(id = paste0(id, "_", rotation)) %>% 
+  dplyr::select(slice_site, id) %>% 
+  st_drop_geometry()
+
+all_triangles_ent <- left_join(all_triangles_ent, sample_points_slices )
+
+
+# select the triangle with the max entropy, add clhs tris and write out
+paired_triangles <- all_triangles_ent %>% 
+  group_by(slice_site) %>%
+  slice(which.max(Entropy_Sum)) %>% 
+  ungroup() %>%
+  dplyr::select(id, Entropy_Sum)
+
+
+cLHS_tri <- cLHS_tri %>% 
+  mutate(id = paste0(id, "_","CLHS")) %>% 
+  dplyr::select(id, Entropy_Sum)
+
+sample_tri <- bind_rows(cLHS_tri, paired_triangles)
+
+st_write(sample_tri , file.path(stage2_dir, "sample_triV2.gpkg"),delete_layer = TRUE)
+
+# write out all tringles 
+
+all_triangles_ent <- all_triangles_ent %>%
+  dplyr::select(id, Entropy_Sum)
+
+all_tri <- bind_rows(cLHS_tri,all_triangles_ent)
+st_write(all_tri , file.path(stage2_dir, "all_triV2.gpkg"), delete_layer = TRUE)
+
+```
+
+

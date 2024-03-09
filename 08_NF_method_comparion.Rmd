@@ -1,0 +1,513 @@
+---
+title: "07_NF_method_comparison"
+author: "G. Perkins"
+date: "27/01/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo = FALSE, message=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+
+library(data.table)
+library(scales)
+library(caret)
+library(sf)
+library(ranger)
+library(tidyverse)
+library(fasterize)
+library(stringr)
+library(dplyr)
+library(raster)
+library(readxl)
+library(foreach)
+library(tidymodels)
+library(themis)
+library(vip)
+library(stringi)
+library(R.utils)
+
+
+```
+
+## NF delineation methods
+
+As part of the PEM mapping process we compare methods for splitting out Non_forest and Forest components of the study area. 
+
+We tried several methods to assess Non-forest accuracy. 
+
+1) Wills manual method. Use the Lidar derivatives to set threshold of values to split forest and non-forest (produces a single raster layer)
+  - test using S1 or S2 points
+
+2) Model non forest class + Forested group (this is built with a subsample of number of forested points), built without using S2 points. This is model number 4. 
+  - test using S2 points
+
+3) Original Non-forest build (need to review this)
+ (Cutblocks, Water, Forest (Treed - coniferous), Forest- TBTM (Treed mixed and treed broadleaf), non-forest and road. 
+ - test using S2?
+ 
+ 
+The following four more models tested are based on different classification of non - forest, See the Deception_mapunitlegend.csv
+
+4) Column ForNonfor  (4 classes) Nfor, CC, Non-veg, For
+5) Column Type = (6 classes) NFor, YFor, Cleared, For, Treed, Wat
+6) Column Type2 = (2 classes) For , NFor
+7) Column Type3 = 3 clases For, Nfor, TreeWet
+
+
+```{r read in data, echo = FALSE}
+
+AOI <- "Deception"
+
+# set up file structure
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+input_pnts_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+# read in temp functions
+source(here::here('_functions', 'model_gen_tidy.R'))
+source(here::here('_functions', 'model_gen_tidy_nf.R'))
+source(here::here('_functions', 'acc_metrix.R'))
+source(here::here('_functions', 'doc_theme_pem.R'))
+source(here::here('_functions', 'balance_recipe.R'))
+
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+
+```
+
+
+```{r readmaps, echo=FALSE}
+
+nf1 <- raster(file.path(cov_dir, "5m", "forest_nonforest.tif"))
+
+plot(nf1)
+
+nf2 <- raster(file.path(out_dir, "forest_non_forest", "for_nfor_all","for_nfor_all", "response.tif"))
+
+plot(nf2) 
+
+nf2_key <- read.csv(file.path(file.path(out_dir, "forest_non_forest", "for_nfor_all","for_nfor_all",  "response_names.csv"))) 
+names(nf2_key) = c("map", ".pred_class2") 
+nf2_key <- nf2_key %>%
+  mutate(.pred_class2 = case_when(
+    .pred_class2 == 'Anthro' ~ "non-forest",
+    .pred_class2 == "Nfor" ~ "non-forest",
+    .pred_class2 == "Wat" ~ "non-forest",
+    .pred_class2 == "For"~ "forest"))
+
+nf3 <- raster(file.path(out_dir, "forest_non_forest", "for_nfor_all","4", "mosaic.tif"))
+nf3_key <- read.csv(file.path(file.path(out_dir, "forest_non_forest", "for_nfor_all","4", "response_names.csv")))
+names(nf3_key) = c("map", ".pred_class3")
+
+plot(nf3) 
+
+# load map 4
+nf4 <- raster(file.path(out_dir, "forest_non_forest", "for_nfor_all","5", "mosaic.tif"))
+nf4_key <- read.csv(file.path(file.path(out_dir, "forest_non_forest", "for_nfor_all","5", "response_names.csv"))) %>%
+  dplyr::rename("map" = X,
+                ".pred_class4"= x)
+
+nf4_key <- nf4_key %>%
+  mutate(.pred_class4 = case_when(
+    .pred_class4 == 'CC' ~ "For",
+    .pred_class4 == "Nfor" ~ "non-forest",
+    .pred_class4 == "Non_veg" ~ "non-forest",
+    .pred_class4 == "For"~ "forest"))
+
+
+# load map 5
+nf5 <- raster(file.path(out_dir, "forest_non_forest", "for_nfor_all","6", "mosaic.tif"))
+nf5_key <- read.csv(file.path(file.path(out_dir, "forest_non_forest", "for_nfor_all","6", "response_names.csv"))) %>%
+  dplyr::rename("map" = X,
+                ".pred_class5"= x)
+
+nf5_key <- nf5_key %>%
+  mutate(.pred_class5 = case_when(
+    .pred_class5 == 'Cleared' ~ "forest",
+    .pred_class5 == "Nfor" ~ "non-forest",
+    .pred_class5 == "Wat" ~ "non-forest",
+    .pred_class5 == "For"~ "forest", 
+    .pred_class5 == "Treed"~ "non-forest", 
+    .pred_class5 == "YFor" ~ "forest"
+    ))
+
+
+# load map 6
+nf6 <- raster(file.path(out_dir, "forest_non_forest", "for_nfor_all","7", "mosaic.tif"))
+nf6_key <- read.csv(file.path(file.path(out_dir, "forest_non_forest", "for_nfor_all","7", "response_names.csv"))) %>%
+  dplyr::rename("map" = X,
+                ".pred_class6"= x)
+
+nf6_key <- nf6_key %>%
+  mutate(.pred_class6 = case_when(
+    .pred_class6 == 'For' ~ "forest",
+    .pred_class6 == "Nfor" ~ "non-forest"
+    ))
+
+
+# load map 7
+nf7 <- raster(file.path(out_dir, "forest_non_forest", "for_nfor_all","8", "mosaic.tif"))
+nf7_key <- read.csv(file.path(file.path(out_dir, "forest_non_forest", "for_nfor_all","8", "response_names.csv"))) %>%
+  dplyr::rename("map" = X,
+                ".pred_class7"= x)
+
+nf7_key <- nf7_key %>%
+  mutate(.pred_class7 = case_when(
+    .pred_class7== "Nfor" ~ "non-forest",
+    .pred_class7 == "For"~ "forest", 
+    .pred_class7 == "Treedwet"~ "non-forest"
+    ))
+
+
+
+
+# read in data points 
+indata <- file.path(AOI_dir, "1_map_inputs","trainingData", "clean", "s2_transect_all_pts.gpkg")
+
+tpts <- st_read(indata) %>%
+  dplyr::select(mapunit1, mapunit2) %>%
+  cbind(st_coordinates(.)) %>%
+  mutate(fnf = ifelse(str_detect(mapunit1, "_"), "forest", "non-forest")) %>%
+  st_drop_geometry() %>% 
+  dplyr::select(fnf, everything()) %>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+
+mptsxy <- tpts %>% dplyr::select(x, y)
+
+
+# join Map 2 results
+mpts <- cbind(tpts, map2 = raster::extract(nf2, mptsxy)) %>%
+  left_join(nf2_key, by = c("map2" = "map")) %>%
+  dplyr::select(-map2)
+
+# join Map 3 results
+mpts <- cbind(mpts, map3 = raster::extract(nf3, mptsxy)) %>%
+  left_join(nf3_key, by = c("map3" = "map")) %>%
+    dplyr::select(-map3) %>%
+  mutate(.pred_class3 = case_when(
+    .pred_class3 == "non_forest" ~ "non-forest",
+    .pred_class3 == "forest" ~ "forest"))
+  
+
+
+
+
+
+
+
+
+# join map 1 results 
+mpts <- cbind(mpts, .pred_class1 = raster::extract(nf1, mptsxy)) 
+
+# make a key for the map 1 
+mpts <- mpts %>%
+   mutate(.pred_class1 = case_when(
+    .pred_class1 == 1 ~ "non-forest",
+    .pred_class1 == 2 ~ "forest"))
+
+
+conf_matrix1 <- mpts %>% 
+   conf_mat(fnf, .pred_class1) %>%
+   pluck(1) %>%
+   as_tibble() %>%
+   ggplot(aes(Prediction, Truth, alpha = n)) +
+   geom_tile(show.legend = FALSE) +
+   geom_text(aes(label = n), colour = "black", alpha = 1, size = 3) + 
+   theme(axis.text.x = element_text(angle = 90)) + 
+   labs(main = "Example Test Confusion Matrix")
+
+conf_matrix2 <- mpts %>% 
+   conf_mat(fnf, .pred_class2) %>%
+   pluck(1) %>%
+   as_tibble() %>%
+   ggplot(aes(Prediction, Truth, alpha = n)) +
+   geom_tile(show.legend = FALSE) +
+   geom_text(aes(label = n), colour = "black", alpha = 1, size = 3) + 
+   theme(axis.text.x = element_text(angle = 90)) + 
+   labs(main = "Example Test Confusion Matrix")
+
+conf_matrix3 <- mpts %>% 
+   conf_mat(fnf, .pred_class3) %>%
+   pluck(1) %>%
+   as_tibble() %>%
+   ggplot(aes(Prediction, Truth, alpha = n)) +
+   geom_tile(show.legend = FALSE) +
+   geom_text(aes(label = n), colour = "black", alpha = 1, size = 3) + 
+   theme(axis.text.x = element_text(angle = 90)) + 
+   labs(main = "Example Test Confusion Matrix")
+
+
+```
+
+We compared each map with the sampled data collected in stage 2, to assess the fit accuracy
+
+
+## Confidence matrix
+
+Matrix 1: 
+
+```{r, echo = FALSE}
+conf_matrix1
+
+```
+
+Matrix 2: 
+
+```{r, echo = FALSE}
+conf_matrix2
+
+
+```
+
+Matrix 3: 
+
+```{r, echo = FALSE}
+conf_matrix3
+
+
+```
+
+
+## Accuracy Statistics
+
+```{r, echo = FALSE}
+# generate summmary stats and graphs
+
+data <- mpts
+
+target = as.data.frame(table(data$fnf)) %>% mutate(type = "transect")
+pred1 <- as.data.frame(table(data$.pred_class1))%>% mutate(type = "pred1")
+pred2 <- as.data.frame(table(data$.pred_class2))%>% mutate(type = "pred2")
+pred3 <- as.data.frame(table(data$.pred_class3))%>% mutate(type = "pred3")
+
+totals <- bind_rows(target, pred1)
+totals <- bind_rows(totals, pred2)
+totals <- bind_rows(totals, pred3)
+
+pprop <- ggplot (data = totals, aes(x =Var1, y = Freq, fill = type)) + 
+  geom_bar(stat =  "identity", position = "dodge",color = "black") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  xlab("site series")+
+  ylab("type")+
+  theme_pem()+ 
+  scale_fill_discrete_sequential(palette = "Light Grays")
+
+
+pprop
+
+```
+
+### Accuracy metrics:
+
+```{r, echo}
+
+# derive the metrics for each of the maps: 
+results1 <- mpts %>% dplyr::select(fnf, .pred_class1)
+names(results1) = c("target", ".pred_class")
+
+results1$target = as.factor(results1$target)
+results1$.pred_class= as.factor(results1$.pred_class)
+
+accuracy_assessment <- function(data){
+  
+  #data <- results1
+  
+  acc <- data %>% accuracy(target, .pred_class, na_rm = TRUE)  
+  kap <- data %>% kap(target, .pred_class, na.rm = TRUE)
+ 
+  #2) calculate aspatial metrics (overall and mapunit % correct)
+  aspatial_pred <- data  %>% 
+    dplyr::select(.pred_class) %>% 
+    group_by(.pred_class) %>% 
+    dplyr::mutate(pred.tot = n()) %>% 
+    ungroup() %>% distinct()
+  
+  aspatial_target <- data %>% 
+    dplyr::select(target) %>% 
+    group_by(target) %>% 
+    dplyr::mutate(trans.tot = n()) %>% 
+    ungroup() %>% distinct()
+    
+ aspatial_sum <- full_join(aspatial_target, aspatial_pred, by = c("target" = ".pred_class")) %>% 
+    dplyr::mutate_if(is.integer, funs(replace_na(., 0))) %>% 
+   # dplyr::mutate(trans.sum = sum(trans.tot, na.rm = TRUE)) %>% 
+    dplyr::mutate(trans.sum = sum(pred.tot, na.rm = TRUE)) %>% 
+    dplyr::rowwise() %>% 
+    dplyr::mutate(aspat_p = min((trans.tot/trans.sum),(pred.tot/trans.sum))) %>%
+    ungroup() %>%
+    mutate(aspat_p_overall = sum(aspat_p)) #%>%
+    #dplyr::select(-aspat_p)
+  
+  trans.sum <- unique(aspatial_sum$trans.sum)
+    
+  aspatial_sum <- aspatial_sum %>% 
+    rowwise()%>%
+    dplyr::mutate(aspat_p_unit_pos = min(trans.tot, pred.tot)/trans.tot) %>%
+    dplyr::mutate_if(is.numeric, ~replace_na(., 0)) %>% 
+    dplyr::mutate_if(is.numeric, ~replace(., is.nan(.), 0))%>%
+    ungroup()%>%
+    dplyr::mutate(aspat_p_meanacc = mean(aspat_p_unit_pos),
+           spat_p_overall =  acc$.estimate,
+           kap = kap$.estimate)
+
+
+  # generate spatially explicit results for primary and prime/alternate
+  xx <- data %>% tabyl(target, .pred_class)
+  xy <- pivot_longer(xx, cols = !target) 
+  
+  # 2) generate  spatial primary accuracy 
+  spat_p <- xy %>%
+    filter(target == name) %>%
+    mutate(spat_p_correct = value ) %>%
+    dplyr::select(target, spat_p_correct) 
+  
+  outsum <- left_join(aspatial_sum, spat_p, by = "target")
+  
+  # generate spatial primary mean accuracy 
+  outsum <- outsum %>%
+    rowwise()%>%
+    mutate(spat_p_unit_pos = spat_p_correct/trans.tot) %>%
+    dplyr::mutate_if(is.numeric, ~replace_na(., 0)) %>% 
+    ungroup() %>%
+    mutate(spat_p_meanacc = mean(spat_p_unit_pos))
+  
+  return(outsum)
+} 
+
+
+
+# derive the metrics for each of the maps: 
+results1 <- mpts %>% dplyr::select(fnf, .pred_class1)
+names(results1) = c("target", ".pred_class")
+
+results1$target = as.factor(results1$target)
+results1$.pred_class= as.factor(results1$.pred_class)
+outsum1 <-accuracy_assessment(results1) %>%
+  mutate(map = "m1")
+
+
+# derive the metrics for each of the maps: 
+results2 <- mpts %>% dplyr::select(fnf, .pred_class2)
+names(results2) = c("target", ".pred_class")
+
+results2$target = as.factor(results2$target)
+results2$.pred_class= as.factor(results2$.pred_class)
+outsum2 <-accuracy_assessment(results2)%>%
+  mutate(map = "m2")
+
+
+# derive the metrics for each of the maps: 
+results3 <- mpts %>% dplyr::select(fnf, .pred_class3)
+names(results3) = c("target", ".pred_class")
+
+results3$target = as.factor(results3$target)
+results3$.pred_class= as.factor(results3$.pred_class)
+outsum3 <-accuracy_assessment(results3)%>%
+  mutate(map = "m3")
+
+results <- bind_rows(outsum1, outsum2, outsum3)
+
+
+
+# plot the results
+
+acc_sum <- results %>%
+    dplyr::mutate(across(ends_with("overall"), ~.x *100)) %>%
+    dplyr::mutate(across(ends_with("meanacc"), ~.x *100)) %>%
+    dplyr::select(map,
+                  aspat_p_overall,  aspat_p_meanacc, 
+                  spat_p_overall, spat_p_meanacc ) %>%
+  distinct() 
+  
+acc_sum_long <- acc_sum %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "aspat") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial"))  %>%
+  mutate(type_model = case_when(
+    str_detect(accuracy_type, "_overall") ~ "area-weighted",
+    str_detect(accuracy_type, "_meanacc") ~ "unweighted")) %>%
+  mutate(accuracy_type_label = case_when(
+    str_detect(accuracy_type, "_p_") ~ "p",
+    str_detect(accuracy_type, "_pa_") ~ "pa",
+    str_detect(accuracy_type, "_fp_") ~ "fp",
+    str_detect(accuracy_type, "_pf_") ~ "fp",
+    str_detect(accuracy_type, "_fpa_") ~ "fpa")) %>%
+  mutate(type_label = paste0(type, "_", type_model))
+
+# calculate the weighted mean and st dev summary 
+
+# set up order for plots 
+acc_sum_long$type_f = factor(acc_sum_long$type_label, levels = c("spatial_area-weighted" ,"aspatial_area-weighted", "spatial_unweighted",  "aspatial_unweighted"))
+
+acc_sum_long$accuracy_type_label = factor(acc_sum_long$accuracy_type_label, levels = c("p","pa", "fp","fpa"))
+
+
+# plot both the cv and test metrics
+p2 <- ggplot(aes(y = value, x = accuracy_type_label , fill = map), data = acc_sum_long ) + 
+   geom_bar(stat =  "identity", position = "dodge") + 
+   facet_wrap(~type_f, scales = "free_x", nrow = 2) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Accuracy measures (median + quartiles)") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100)+
+   theme_pem_facet()+ 
+   scale_fill_discrete_sequential(palette = "Light Grays")
+
+p2
+
+```
+
+
+## Accuracy per mapunit
+
+We can compare map unit accuracy levels to assess under or acceptable performance per map units. 
+
+```{r generate overall mapunit, echo = FALSE, eval = TRUE}
+
+# map unit plots: 
+
+mu_acc <- results  %>%
+    dplyr::select(map, target,
+                 aspat_p_unit_pos, aspat_p_meanacc, 
+                 spat_p_unit_pos, spat_p_meanacc) %>%
+  pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") 
+
+mu_acc <- mu_acc %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "aspat") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial")) %>%
+  mutate(type_model = case_when(
+    str_detect(accuracy_type, "_unit_pos") ~ "mapunit",
+    str_detect(accuracy_type, "_meanacc") ~ "unweighted")) %>%
+  mutate(accuracy_type_label = case_when(
+    str_detect(accuracy_type, "_p_") ~ "p",
+    str_detect(accuracy_type, "_pa_") ~ "pa",
+    str_detect(accuracy_type, "_fp_") ~ "fp",
+    str_detect(accuracy_type, "_pf_") ~ "fp",
+    str_detect(accuracy_type, "_fpa_") ~ "fpa")) %>%
+  mutate(type_label = paste0(type, "_", type_model))
+ 
+
+p4 <- ggplot(aes(y = value, x = type_label , fill = map), data = mu_acc ) + 
+   geom_bar(stat =  "identity", position = "dodge") + 
+   facet_wrap(~ target, scales = "free_x", nrow = 2) +
+   ggtitle("Mapunit accuracy measures ") + 
+   xlab("accuracy measure") + ylab("Proportion of Accurate calls") + 
+   ylim(-0.05, 1)+
+   theme_pem_facet()+ 
+   scale_fill_discrete_sequential(palette = "Light Grays")
+  
+p4
+
+```
+

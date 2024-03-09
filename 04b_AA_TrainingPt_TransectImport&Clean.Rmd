@@ -1,0 +1,686 @@
+---
+title: "QA for PEM field sampling Kootenay/Invermere/Cranbrook TSA 2022"
+subtitle: "by Gen Perkins"
+date: "22/11/2022"
+output: html_document
+---
+
+```{r global_options, include=FALSE , warnings = FALSE, message = FALSE}
+require(knitr)
+
+```
+
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+
+library(tidyverse)
+library(raster)
+library(fasterize)
+library(sf)
+library(tools)
+library(lwgeom)
+library(foreach)
+library(tidyr)
+library(purrr)
+library(foreach)
+library(scales)
+library(stringr)
+library(dplyr)
+library(ggplot2)
+
+```
+
+```{r set up folder structure, include = FALSE, warning = FALSE }
+
+#AOI <- "Deception"
+AOI <- "KootInvCran"
+res <- 5
+
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+
+trans_layout <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "transect_layout")
+trans_data <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "transect_data") 
+
+output_pnts_dir <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "training_pts")
+
+qa_out_dir <- file.path(AOI_dir, "2_sample_design", "stage1_QA")
+# trans_data <- file.path(AOI_dir, "2_sample_design","stage1_AA_2019")
+# trans_layout <- file.path(AOI_dir, "2_sample_design","stage1_AA_2019")
+# output <- file.path(AOI_dir, "3_maps_analysis", "external_AA")
+
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+res_folder <- paste0(res, "m")
+
+raster_template  <- raster(file.path(cov_dir, "5m", "template.tif"))
+
+if(!dir.exists(output_pnts_dir)) dir.create(output_pnts_dir, recursive = TRUE)
+```
+
+```{r Functions, include = FALSE}
+source(here::here('_functions', 'extend_lines.R'))
+source(here::here('_functions', 'make_lines.R'))
+source(here::here('_functions', 'transect_sample.R'))
+source(here::here('_functions', 'multiline_to_line.R'))
+source(here::here('_functions', '_standardise_avenza_input_field_names.R'))
+source(here::here('_functions', 'convert_line_allpts.R'))
+#source(here::here('_functions', 'acc_metrix_QA.R'))
+
+```
+
+```{r import files to run analysis, tidy = TRUE,eval = FALSE, warning=FALSE, include = FALSE}
+
+transect_layout <- st_read(file.path(output_pnts_dir, "transect_layout_s1.gpkg"))
+transect_layout_buf <- st_buffer(transect_layout, 10)
+
+```
+
+
+```{r, include = FALSE, eval = FALSE}
+
+observer_column <- "x02_observe"
+poc_column <- "x03_pt_type"
+mapunit1_column <- "x04_mapunit"
+transition_column <- "x05_transit"
+mapunit2_column <- "x06_mapunit"
+strcst_column <- "x07_struct_"
+strcmod_column <- "x08_struct_"
+comment_column <- "x09_comment"
+edatope_column <- "x10_edatope"
+time_column <-"timestamp"
+
+#order_column <- "f11_order"
+
+points <- list.files(file.path(trans_data, "final_qa"), pattern = ".gpkg$|.shp$", full.names = TRUE)
+
+#points <- points[1]
+
+
+all_points <- foreach(x = points, .combine = rbind) %do% {
+
+  #x = points[1]
+  
+  s1_layers <- st_layers(x)
+  pts <- which(s1_layers[["geomtype"]] %in% c("Point","3D Point","3D Measured Point"))
+
+  if(length(pts)>0) { 
+    
+  print(x)
+
+     points_read <- st_read(x, quiet = TRUE) %>%
+     #names(points_read)
+     st_transform(3005) %>% 
+     st_zm() %>% 
+     rename_all(.funs = tolower) 
+     
+    if("x07_struc_" %in% names(points_read)){
+        points_read <- points_read %>% 
+          mutate(x07_struct_ = x07_struc_) %>%
+          mutate(x08_struct_ = x08_struct)
+    }
+     
+    if("f01_transec" %in% names(points_read)){
+        dnames = names(points_read)
+        colnames(points_read) <- gsub("f0", "x0", dnames)
+        points_read <- points_read %>%
+          dplyr::mutate(x10_edatope = f10_edatope)
+          
+      }
+     
+
+     points_read <- points_read %>% 
+     mutate(mapunit1 = UQ(rlang::sym(mapunit1_column)),
+            mapunit2 = UQ(rlang::sym(mapunit2_column)),
+            point_type = UQ(rlang::sym(poc_column)),
+            observer = UQ(rlang::sym(observer_column)), 
+            transition = UQ(rlang::sym(transition_column)),
+            comments = UQ(rlang::sym(comment_column)),
+            strcst = UQ(rlang::sym(strcst_column)),
+            strcmod = UQ(rlang::sym(strcmod_column)),
+            time = UQ(rlang::sym(time_column))) %>%
+     st_join(., transect_layout_buf, join = st_intersects) %>%
+     rename_all(.funs = tolower) %>%
+     rename(transect_id = id)
+  
+     if("name" %in% names(points_read)){
+       points_read <- points_read %>%
+         mutate(order = as.numeric(gsub("Placemark ", "", name)))
+     }
+     # } else {
+     #   
+     #   points_read <- points_read %>%
+     #     mutate(name = seq(1, length(mapunit1),1))
+     # }
+    points_read <- points_read %>%
+     dplyr::select(any_of(c("order", "mapunit1", "mapunit2", "point_type", "transect_id", "observer", "transition", "comments", "strcst", "strcmod", "time" ))) %>%
+     group_by(transect_id) %>%
+     arrange(as.numeric(order), by_group = TRUE) %>%
+     ungroup() 
+    
+     st_geometry(points_read ) <- "geom"
+     print(length(points_read$order))
+     points_read
+     
+  }
+
+} %>% 
+  distinct(., .keep_all = TRUE) 
+
+# catergorise data types:
+points <- all_points %>%
+  mutate(data_type = ifelse(is.na(transect_id), "incidental", "s1"))
+
+# match to the baseunit key using mapunit legend & format observer column
+
+# ## check the site names are matching in key 
+# cross check values with AOI key
+map.key_sum <- map.key %>% dplyr::select(c(FieldCall, BaseMapUnit))
+
+# outdata <- points %>%
+#   dplyr::select(mapunit1, mapunit2)%>%
+#   st_drop_geometry() %>%
+#   distinct() %>%
+#   left_join(map.key_sum, by = c("mapunit1" = "FieldCall")) %>%
+#   #dplyr::select(-mapunit1) %>%
+#   dplyr::rename(mapunit1_match = BaseMapUnit) %>%
+#   left_join(map.key_sum, by = c("mapunit2" = "FieldCall")) %>%
+#   #dplyr::select(-mapunit2) %>%
+#   dplyr::rename(mapunit2_match = BaseMapUnit) %>%
+#   distinct()
+
+points_final <- format_mapunit_names(points, map.key)
+points_final <- fill_observer(points_final)
+ 
+# covert to lines 
+processed_transects <- make_lines(GPSPoints = points_final, 
+                                  Transects = transect_layout_buf, 
+                                  method = "pts2lines",  
+                                  tBuffer = 20, PROJ = 3005) %>%
+  mutate(mapunit1 = (trimws(mapunit1)),
+         mapunit2 = (trimws(mapunit2))) %>%
+  mutate(mapunit12 = paste0(mapunit1,"_", mapunit2)) %>%
+  mutate(mapunit12 = gsub("_NA","", mapunit12)) %>%
+  mutate(mapunit12 = gsub("_$","", mapunit12)) %>%
+  dplyr::select(-TID, -ID)
+
+st_write(processed_transects,  file.path(output_pnts_dir, "QA_proc_s1_transects.gpkg"), 
+         delete_layer = TRUE)
+
+st_write(points_final, file.path(output_pnts_dir, "QA_s1_pts.gpkg"), delete_layer = TRUE)
+
+```
+
+```{r import base files to run analysis, tidy = TRUE, warning=FALSE, eval = FALSE, include = FALSE}
+## 1) Import consolidated data and linear transects
+
+transect_layout <- st_read(file.path(output_pnts_dir, "transect_layout_s1.gpkg"))
+transect_layout_buf <- st_buffer(transect_layout, 10)
+
+
+s1_trans_QA <- st_read(file.path(output_pnts_dir, "QA_proc_s1_transects.gpkg"), quiet = TRUE) %>% mutate(data_type ="QA")
+raster_points_xy <- convert_line_allpts(s1_trans_QA, terra::rast(raster_template))
+raster_points_xy <- format_transect(st_as_sf(raster_points_xy))
+st_write(raster_points_xy, file.path(output_pnts_dir, "QA_transect_all_pts.gpkg"), 
+                              delete_layer = TRUE)
+      
+
+# filter the contractor data that has been QA's
+s1_trans_cont  <- st_read(file.path(output_pnts_dir, "s1_transects.gpkg")) %>% mutate(data_type ="contractor") 
+raster_points_xy <- convert_line_allpts(s1_trans_cont , terra::rast(raster_template))
+raster_points_xy <- format_transect(st_as_sf(raster_points_xy))
+st_write(raster_points_xy, file.path(output_pnts_dir, "cont_transect_all_pts.gpkg"), 
+         delete_layer = TRUE)
+
+```
+ 
+ 
+```{r, echo = FALSE, fig.width = 10, fig.height=10, message = FALSE}
+
+## Summary 
+qp <- st_read(file.path(output_pnts_dir, "QA_transect_all_pts.gpkg"), quiet = T) %>%
+   cbind(st_coordinates(.)) %>% st_drop_geometry()
+
+cp <- st_read(file.path(output_pnts_dir, "cont_transect_all_pts.gpkg"), quiet = T) %>% cbind(st_coordinates(.)) %>% st_drop_geometry()
+
+# combine the QA and cp points
+allpts <- left_join(qp, cp, by = c("X", "Y"))
+
+# set up table with mapunit1_QA and mapunit1_co (only for overlapping ground)
+subpts <- allpts %>%
+  dplyr::select(transect_id.x, tid.x, mapunit1.x, mapunit2.x, transition.x, observer.x, comments.x , mapunit1.y,  mapunit2.y, transition.y, observer.y,comments.y , X, Y) %>%
+  filter(!is.na(mapunit1.y)) 
+
+
+sb <- st_as_sf(subpts, coords = c("X","Y"), crs = st_crs(3005))
+
+
+          
+```
+
+
+
+```{r, eval = TRUE, include = FALSE}
+
+# number of transects 
+ssb <- subpts %>% 
+  filter(!is.na(transect_id.x)) %>% 
+  filter(!is.na(mapunit1.x)) %>%
+  filter(!is.na(observer.y)) %>%
+  filter(transect_id.x != "MS  dw_2.5_10_cLHS") %>%
+  filter(transect_id.x != "IDF dm 2_2.5_10_cLHS")
+
+unique(ssb$transect_id.x)
+unique(ssb$observer.y)
+
+# update the observer name to make annonymous
+
+ssb <- ssb %>% 
+  mutate(observer.y = case_when(
+    observer.y == "BB" ~ "junior_1",
+    observer.y == "DK" ~ "intermediate_1",
+    observer.y == "MvW" ~ "senior_1",
+    observer.y == "SH" ~ "senior_2",
+  ))
+
+
+
+# 18 transects 
+```
+
+In 2022, quality assurance surveys were completed on `r length(unique(ssb$transect_id.x))` transects from `r length(unique(ssb$observer.y))` observers. 
+
+Only locations (pixals at 5m scale) which were directly overlapping were used to compare between the QA and contractors. The total number of overlapping pixals was `r length(ssb$observer.y)`
+
+```{r, include = FALSE, eval = TRUE}
+# number of observers 
+obs_sum <- ssb %>%
+  filter(!is.na(observer.y)) %>%
+  group_by(observer.y, transect_id.x) %>%
+  summarise(no = n())
+
+obs <- ssb %>%
+  filter(!is.na(observer.y)) %>%
+  group_by(observer.y) %>%
+  summarise(no = n()) 
+
+trans <- ssb %>%
+  filter(!is.na(observer.y)) %>%
+  group_by( transect_id.x) %>%
+  summarise(no = n()) 
+
+```
+
+
+```{r, eval = TRUE}
+knitr::kable(obs_sum)
+```
+
+
+This included a mix of subzone variants. 
+I compared both primary and secondary call for both contractor and QA calls to give benefit of doubt for calls. 
+
+
+```{r, eval = TRUE, include = FALSE}
+
+qa_summary <- ssb %>% 
+  dplyr::select(transect_id.x, mapunit1.x,  mapunit2.x,
+                observer.y,mapunit1.y, mapunit2.y)
+
+qa1 <- qa_summary %>%
+  mutate(best_ss = case_when( 
+    mapunit1.y == mapunit1.x ~ mapunit1.y, 
+    mapunit1.y != mapunit1.x & mapunit2.y == mapunit1.x ~ mapunit2.y,
+    mapunit1.y != mapunit1.x & mapunit1.y == mapunit2.x ~ mapunit1.y
+    )) %>%
+  mutate(final_ss = case_when(
+    is.na(best_ss) ~ mapunit1.y, 
+    TRUE ~ best_ss))
+    
+qamatrix <- dplyr::select(qa1, transect_id.x, observer.y, mapunit1.x, final_ss)
+
+
+# format levels for factors 
+levels = with(qamatrix, unique(c(mapunit1.x, final_ss)))
+
+qamatrix = within(qamatrix, {
+    mapunit1.x = factor(mapunit1.x, levels)
+  })
+qamatrix = within(qamatrix, {
+    final_ss = factor(final_ss, levels)
+  })
+
+names(qamatrix) = c("transect", "observer", "target", ".pred_class")
+
+uids <- as.factor(unique(qamatrix$transect))
+  
+# for all slices
+sresults <- foreach(k = levels(uids)) %do% {
+  
+  #k = levels(uids)[1]
+  print(k)
+
+  # test set
+  tdata <- qamatrix %>% filter(transect %in% k)
+  
+  # calculate the aspatial metrics: 
+  
+  aspatial_pred <- tdata  %>% 
+    dplyr::select(.pred_class) %>% 
+    group_by(.pred_class) %>% 
+    dplyr::mutate(pred.tot = n()) %>% 
+    ungroup() %>% distinct()
+  
+  aspatial_target <- tdata %>% 
+    dplyr::select(target) %>% 
+    group_by(target) %>% 
+    dplyr::mutate(trans.tot = n()) %>% 
+    ungroup() %>% distinct()
+  
+  aspatial_sum <- full_join(aspatial_target, aspatial_pred, by = c("target" = ".pred_class")) %>% 
+    mutate_if(is.integer, funs(replace_na(., 0))) %>% 
+    mutate(trans.sum = sum(trans.tot, na.rm = TRUE)) %>% 
+    dplyr::rowwise() %>% 
+    mutate(trans.pro = (trans.tot/trans.sum), 
+           pred.pro = (pred.tot/trans.sum)) %>%
+    ungroup() 
+  
+  # work around to fix min() rowwise error
+    dat <- data.table::as.data.table(aspatial_sum)
+    dat[, aspat_p := pmin(trans.pro, pred.pro)]
+    dat[, unit_pos_temp := pmin(trans.tot, pred.tot)]
+    
+    #mutate(unit_pos = min(trans.tot, pred.tot)/trans.tot) %>%
+    
+  aspatial_sum = as.data.frame(dat) %>%
+    dplyr::select(c(-trans.pro, -pred.pro)) %>%
+    mutate(aspat_p_mean = sum(aspat_p)) %>%
+    dplyr::rowwise() %>%
+    mutate(unit_pos = unit_pos_temp/trans.tot)%>%
+    dplyr::select(-unit_pos_temp) %>%
+    mutate(transect = unique(tdata$transect),
+           observer = unique(tdata$observer))
+    aspatial_sum[is.na(aspatial_sum)] <- 0
+
+  
+  # calculate the spatial metrics
+  
+  test.pred <- dplyr::select(tdata, "target", ".pred_class")
+  
+  ###harmonize levels
+  targ.lev <- levels(test.pred$target)
+  pred.lev <- levels(test.pred$.pred_class)
+  levs <- c(targ.lev, pred.lev) %>% unique()
+  test.pred$target <- factor(test.pred$target, levels = levs)
+  test.pred$.pred_class <- factor(test.pred$.pred_class, levels = levs)
+
+  cfm <- as_tibble(table(test.pred)) 
+  cfm <- cfm %>% 
+    filter(n >0) %>% 
+    mutate(transect = unique(tdata$transect),
+           observer = unique(tdata$observer))
+  
+  spatial <- cfm %>% 
+    dplyr::mutate(keep = case_when(
+      target == .pred_class ~ 1
+    )) %>% 
+    filter(keep == 1) %>% 
+    mutate(spat_no = as.numeric(n)) %>% 
+    dplyr::select(target, spat_no)
+
+  tot_acc <- dplyr::left_join(aspatial_sum, spatial, by = "target")
+  tot_acc [is.na(tot_acc )] <- 0
+  
+  tot_acc <- tot_acc %>%
+    rowwise() %>%
+    mutate(spat_p_unit = round(spat_no/trans.tot,3)) %>%
+    ungroup()
+  tot_acc [is.na(tot_acc )] <- 0
+  
+   tot_acc <- tot_acc %>%
+     mutate(spat_sum = sum(spat_no)) %>% 
+     mutate(spat_mean = round(spat_sum/trans.sum,2)) %>% 
+     dplyr::select (-aspat_p)
+  
+  return(list(cfm,  tot_acc ))
+
+  }
+
+
+# extract results from sresults
+cov_matrix <- lapply(sresults, function(x) x[[1]])
+tots <- lapply(sresults, function(x) x[[2]])
+cov_matrix <- as.data.frame(data.table::rbindlist(cov_matrix)) 
+tots <- as.data.frame(data.table::rbindlist(tots)) 
+  
+names(cov_matrix)<- c("qa", "obs", "n", "transect", "observer")
+
+```
+
+    
+## Aggreement measures
+
+Several types of agreement measures were calculated;
+
+1) unweighted (aspatial): this is equivalent to traditional AA where proportion of map units are compared. 
+
+2) area weighted (spatial) (spat_p): this compares spatial equivalents for best call (primary and or secondary) for each pixal/point predicted.
+
+
+
+## Aspatial and Spatial Agreement
+
+```{r, echo = FALSE, eval = TRUE}
+#Compare the CV metrics to test metrics to see model fit 
+
+acc_sum <- tots  %>%
+    dplyr::mutate(across(ends_with("mean"), ~.x *100)) %>%
+    #dplyr::mutate(across(ends_with("meanacc"), ~.x *100)) %>%
+    dplyr::select(transect, observer, target,
+                  aspat_p_mean, spat_mean,
+                  unit_pos, spat_p_unit)
+
+average_acc <- acc_sum %>%
+   dplyr::select(transect, observer,
+                  aspat_p_mean, spat_mean) %>%
+  distinct()
+  
+
+mapunit_acc <- acc_sum %>%
+   dplyr::select(transect, observer, target,
+                  unit_pos, spat_p_unit) %>%
+  distinct()
+  
+  
+# plot both the cv and test metrics
+p1 <- ggplot(aes(y = aspat_p_mean, x = transect ), data = average_acc ) + 
+   geom_boxplot() +
+   facet_wrap(~observer, scales = "free_x", nrow = 1) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Mean Aspatial Agreement") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100) +
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+   #scale_fill_discrete_sequential(palette = "Light Grays")
+
+p1
+
+
+# plot both the cv and test metrics
+p2 <- ggplot(aes(y = spat_mean, x = transect ), data = average_acc ) + 
+   geom_boxplot() +
+   facet_wrap(~observer, scales = "free_x", nrow = 1) +
+   geom_hline(yintercept = 65,linetype ="dashed", color = "black") + 
+   ggtitle("Mean Spatial Agreement") + 
+   xlab("Mapunit") + ylab("Accuracy") + 
+   ylim(-0.05, 100) +
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+   #scale_fill_discrete_sequential(palette = "Light Grays")
+
+p2
+
+```
+
+
+## Agreement per mapunit
+
+We can compare map unit agreement levels to assess under or acceptable performance per map units. 
+
+```{r generate overall mapunit, echo = FALSE, eval = TRUE}
+
+# map unit plots: 
+
+mu_acc <- mapunit_acc %>%
+  pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") 
+
+mu_acc <- mu_acc %>%
+  mutate(type = case_when(
+    str_detect(accuracy_type, "unit_pos") ~ "aspatial",
+    str_detect(accuracy_type, "spat") ~ "spatial"))
+
+p4 <- ggplot(aes(y = value, x = target , colour = type), data = mu_acc  ) + 
+   geom_jitter() +
+   facet_wrap(~observer, scales = "free_x", nrow = 1) +
+   ggtitle("Mapunit accuracy measures ") + 
+   xlab("accuracy measure") + ylab("Proportion of Accurate calls") + 
+   ylim(-0.05, 1) +
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  
+p4
+
+p5 <- ggplot(aes(y = target, x = value , colour = observer), data = mu_acc  ) + 
+   geom_boxplot() +
+   facet_wrap(~type, scales = "free_x", nrow = 1) +
+   ggtitle("Mapunit accuracy measures ") + 
+   ylab("Mapunit") + xlab("Proportion of Accurate calls") + 
+   #ylim(-0.05, 1) +
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  
+p5
+
+
+```
+
+
+
+## Confusion matrix
+
+```{r, include = TRUE}
+#knitr::kable(cov_matrix)
+# 
+# # testing for across matrix
+uids <- as.factor(unique(cov_matrix$transect))
+
+for(i in uids){
+ # i <- uids[14]
+  
+  print(i)
+  
+  cm <- cov_matrix %>% 
+     dplyr::filter(transect == i) %>%
+    dplyr::select(-transect) %>% 
+    dplyr::filter(qa !="")
+
+  xx <-  cm %>%
+   pivot_wider(names_from = qa, values_from = n, values_fill = 0,values_fn = ~sum(.x, na.rm = TRUE)) %>% dplyr::relocate(observer)
+
+  print(xx)
+  #knitr::kable(xx)
+} 
+
+# xx <-  cm %>%
+#   pivot_wider(names_from = qa, values_from = n, values_fill = 0,values_fn = ~sum(.x, na.rm = TRUE))
+knitr::kable(cov_matrix)
+```
+
+
+
+```{r, echo = FALSE, fig.width= 12, fig.height = 16, eval = FALSE}
+# plot the freqency 
+
+# points collected per type (primary and secondary calls) all calls
+#p <- ggplot(trans_total, aes(y = mapunit12, x = length)) + 
+#  facet_wrap(~bgc, scales = "free_x") +    
+#  geom_bar(stat = "identity")
+#         
+#print(p)
+
+
+
+for(b in bgc_list) {
+
+ # b = unique(pt_total$bgc)[3]
+  pt_total_bgc <- trans_total %>%
+    filter(bgc == b)
+  
+  p <- ggplot(pt_total_bgc , aes(y = reorder(mapunit12, length), x = length)) +
+  geom_bar(stat = "identity") + 
+  labs(title = b, y = "mapunit")
+  
+  print(p)
+  
+#  ggplot(pt_total_bgc , aes(y = mapunit1, x = freq)) +
+#  geom_bar(stat = "identity")
+     
+  #ggsave(file.path(s1_dir, paste0(b, "_point_freq_s1.png")))
+  
+  
+}
+
+```
+
+
+```{r, echo = FALSE, eval = FALSE}
+
+# group by observer
+
+all_trans_ob <- all_trans %>%
+  group_by(transect_id) %>%
+  fill( observer, .direction = "downup")
+
+#all_trans_ob_sum <- all_trans_ob %>%
+#   group_by(transect_id, observer) %>%
+#    dplyr::summarise(count = n())
+
+trans_ob_p <- all_trans_ob %>%
+ # dplyr::filter(is.na(mapunit2)) %>%
+  group_by(observer) %>%
+  summarise(all.calls = sum(length))
+
+trans_ob_s <- all_trans_ob %>%
+  dplyr::filter(!is.na(mapunit2)) %>%
+  group_by(observer) %>%
+  summarise(sec.calls = sum(length))
+
+
+trans_obs_type <- left_join(trans_ob_p, trans_ob_s) %>%
+  mutate(pc.sec = round((sec.calls/all.calls * 100),1))
+
+trans_obs_type<- trans_obs_type %>%
+  mutate(observer = case_when(
+    observer == "EAC GP" ~ "EAC",
+    observer == "EAC GCP" ~ "EAC",
+    observer == "EC" ~ "EAC",
+    observer == "CC LJ" ~ "CC",
+    observer == "DF LJ" ~ "DF",
+    observer =="DJM DF" ~ "DJM",
+    observer == "PD AR" ~ "PD", 
+    observer =="SRan" ~ "SR",
+    observer == "SR/MZ" ~ "SR",
+    observer == "WM" ~ "WHM",
+        TRUE ~ observer)) %>%
+      group_by(observer) %>%
+      summarise(across(where(is.numeric), sum)) %>%
+  mutate(pc.sec = round(sec.calls/all.calls * 100,1))
+
+```
+
+```{r, results  = "asis", hide = TRUE, echo = FALSE, eval = FALSE}
+
+kable(trans_obs_type)
+
+```
+
+

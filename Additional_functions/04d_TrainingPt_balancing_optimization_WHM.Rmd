@@ -1,0 +1,1504 @@
+---
+title: "Summary Metrics for Deception Test Case"
+output: html_document
+params:
+  outDir: "."
+  trDat: trDat
+  target: target
+  target2: target2
+  tid: tid
+  rseed: NA
+  infiles: infiles
+  mmu: mmu
+  mname: mname
+  field_transect: field_transect
+  
+---
+
+The is script is set up as a one off to determine the optimum model balancing for a given data set. 
+You should already have prepared your data and determined number of slices before compliling this script or the outputs will not work.  
+
+In this script we compare the following method to get the best out of the data: 
+
+1. raw
+2.	downsample (under ratio = 0 - 100) ie. downsample_10
+3.	smote (over ratio = 0 - 1), i.e. smote_0.5
+4.	downsample and smote combination (combination of both under/over ratios) ie: ds_50_sm_0.3 (downsample to 50% and upsmote to 0.3)
+
+This modelling used in the script is script is based on the sliced data approach. 
+
+```{r setup, include=FALSE, echo = FALSE}
+
+library(data.table)
+library(scales)
+library(sf)
+library(ranger)
+library(tidyverse)
+library(fasterize)
+library(stringr)
+library(dplyr)
+library(raster)
+library(readxl)
+library(foreach)
+library(tidymodels)
+library(themis)
+library(vip)
+require(stringi)
+library(knitr)
+library(ggplot2)
+library(janitor)
+require(ggthemes)
+library(colorspace)
+#install_github("bcgov/envreportutils")
+
+#library(envreportutils)
+```
+
+We firstly set up the data directory for the given study area
+
+```{r, eval = FALSE, echo = FALSE}
+
+## set up file structure
+AOI <- "Deception"
+#AOI <- "BoundaryTSA"
+#AOI <- "EagleHills"
+
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+input_pnts_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData", "att_5m")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+# read in temp functions
+source(here::here('_functions', 'model_gen_tidy.R'))
+source(here::here('_functions', 'acc_metrix.R'))
+source(here::here('_functions', 'balance_recipe_WHM.R'))
+source(here::here('_functions', 'doc_theme_pem.R'))
+
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+# #read in the fuzzy index
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic_updated.csv")) %>%
+  dplyr::select(c(target, Pred, fVal))
+fMat <- data.table(fMat)
+
+#if(AOI == "BoundaryTSA"){
+bec_shp <- st_read(file.path(shapes_dir, "bec_edited.gpkg"), quiet = TRUE)
+#} else {
+#bec_shp <- st_read(file.path(shapes_dir, "bec_edited.gpkg"), quiet = TRUE)
+#}
+
+```
+
+We then prepare the data for the modelling process
+
+```{r compile model parameters, eval = FALSE, echo = FALSE}
+
+# read in model parameters 
+model_param <- file.path(AOI_dir, "_MapUnitLegend", "models.xlsx")
+
+# set up model parameters:  
+mparam <- read_xlsx(model_param, "models") %>% filter(to_run == 1)
+map_res <- mparam$resolution
+data_res <- paste0("att_", map_res, "m")
+mname <- paste0(mparam$model_name)
+mrep <- mparam$model_rep
+
+# check which category of model to be produced
+mtype <- case_when(
+  str_detect(mname, "for_nf")  ~ "forest_non_forest",
+  str_detect(mname, "nf_") ~ "non_forest",
+  str_detect(mname, "fore") ~ "forest"
+)
+
+# get covariates
+mcov <- read_xlsx(model_param, "covariates", skip = 2) %>%
+  filter(!!sym(mparam$covariates) == 1) %>%
+  dplyr::select(covariate)
+
+# get training point sets
+mtpt <- read_xlsx(model_param, "training_pts", skip = 2) %>%
+  filter(!!sym(mparam$training_pts) == 1) %>%
+  dplyr::select(tp_code)%>%
+  pull
+
+# get the map unit level 
+mmu <- read_xlsx(model_param, "map_unit", skip = 2) %>%
+   filter(!!sym(mparam$map_unit) == 1) %>%
+  dplyr::select(legend_column)%>%
+  pull
+
+mmu <- case_when(
+  mmu == "column_mu" ~ "MapUnit", 
+  mmu == "column_ss" ~ "SiteSeries",
+  mmu == "column_ass" ~ "Association",
+  mmu == "column_cls" ~ "Class",
+  mmu == "column_grp" ~ "Group",
+  mmu == "column_typ" ~ "Type",
+  mmu == "column_full" ~ "Full")
+# set up outfolder: 
+if(!dir.exists(file.path(out_dir, mtype))){dir.create(file.path(out_dir, mtype))} 
+
+out_dir <- file.path(out_dir, mtype, mname, mrep) 
+
+# filter covars
+res_folder <- paste0(map_res, "m")
+
+rast_list <- list.files(file.path(cov_dir, res_folder), pattern = ".tif$", full.names = TRUE)
+
+rast_list <- rast_list[tolower(gsub(".tif", "", basename(rast_list))) %in% tolower(mcov$covariate)]
+
+mcols <- gsub(".tif","", tolower(basename(rast_list)))
+
+bec_shp <- st_read(file.path(shapes_dir, "bec.gpkg"), quiet = TRUE)
+
+# read in training pt data
+
+indata <- list.files(file.path(input_pnts_dir), paste0(mtpt,"_att.*.gpkg$"), full.names = TRUE)
+
+tpts <- st_read(indata) 
+infiles <- basename(indata) 
+
+#  MU_count <- tpts %>% dplyr::count(mapunit1)
+#table(tpts$mapunit1)
+
+# match to the key and filter for forest and non_forest points
+
+subzones <- unique(bec_shp$MAP_LABEL)
+subzones <- gsub("\\s+","",subzones )
+
+bec_shp <- bec_shp %>% mutate()
+
+tpts  <- tpts %>%
+  cbind(st_coordinates(.)) %>%
+  mutate(fnf = ifelse(grepl(paste0(subzones, collapse = "|"), mapunit1), "forest", "non_forest")) %>%
+  st_join(st_transform(bec_shp[, "MAP_LABEL"], st_crs(.)), join = st_nearest_feature) %>%
+  st_drop_geometry() %>% 
+  dplyr::select(fnf, everything()) %>% #dplyr::select(-x, -y, -bgc_cat) %>% 
+  dplyr::rename(bgc_cat = MAP_LABEL) %>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+
+#tpts <- tpts %>%
+#  filter(!is.na(tid))
+
+tpts <- tpts %>%
+  #mutate(slice = 1) %>%
+  mutate(bgc_cat = gsub(" ", "", bgc_cat))
+
+
+# match the column for map unit based on key 
+# select the target column using the mapkey if needed: 
+  map.key.sub <- map.key %>%
+      dplyr::select(BaseMapUnit, !!sym(mmu)) %>%
+      distinct() %>% dplyr::rename(MapUnit = 2)
+  
+  tpts <- tpts %>% left_join(map.key.sub, by = c("mapunit1" = "BaseMapUnit")) %>%
+    left_join(map.key.sub, by = c("mapunit2" = "BaseMapUnit")) %>%
+    dplyr::select(-mapunit1, -mapunit2) %>%
+    dplyr::rename("mapunit1" = MapUnit.x,
+                  "mapunit2" = MapUnit.y) %>%
+    dplyr::select(mapunit1, mapunit2, everything())
+
+
+# filter for forest or non_forest points as required
+if(mtype %in% c("forest", "non_forest")) {
+   tpts <- tpts %>% filter(fnf == mtype)
+} 
+
+tpts <- tpts %>%
+    mutate(target = as.factor(mapunit1),
+                          target2 = as.factor(mapunit2)) 
+
+# filter columns
+mpts <- tpts %>%
+     dplyr::select(target, target2, transect_id, tid, slice, bgc_cat, any_of(mcols))
+
+mpts$transect_id <-   str_replace_all(mpts$transect_id ,c("essfmc" = "ESSFmc" , "sbsmc" = "SBSmc"))
+
+zones <- c(as.character(subzones))
+
+bgc_pts_subzone <- lapply(zones, function (i){
+      pts_subzone <- mpts %>%
+        filter(str_detect(transect_id, as.character(paste0(i, "_")))) %>% ###changed this from target to allow inclusion of non-forest by bgc
+        droplevels()
+      
+      if(nrow(pts_subzone) == 0){ pts_subzone = NULL} else {ppts_subzone = pts_subzone }
+      pts_subzone
+  })
+  
+# generate a name for list objects removing NULL values
+names <- unlist(lapply(bgc_pts_subzone, is.null))
+zone_names <- zones[-(which(ll <- names)) ] 
+  
+# remove null or missing subzones data sets 
+bgc_pts_subzone =  bgc_pts_subzone[-which(sapply(bgc_pts_subzone, is.null))]
+names(bgc_pts_subzone) <- zone_names
+
+# for eagle hills
+#names(bgc_pts_subzone) <- c("IDFxh2","IDFdk1")
+
+```
+
+We then iterate through the BGC s (this is currently a manual process). This chuck also includes the parameters to set up the balancing combination. In this case we need to adjust both the downsample and smote parameters by setting to TRUE or FALSE
+
+- raw : downsample = FALSE, smote = FALSE
+- downsampling only :  downsample = TRUE, smote = FALSE
+- downsample and smote :  downsample = TRUE, smote = TRUE
+
+
+```{r prep data by BGC, echo = FALSE, eval = FALSE}
+  # select the bgc to use 
+  xx <- names(bgc_pts_subzone[2])
+
+  inmdata = bgc_pts_subzone[[xx]]
+  out_name = names(bgc_pts_subzone[xx])
+  
+  inmdata_all <- inmdata
+  outDir = file.path(paste(out_dir, out_name, sep = "/"))
+
+  if(!dir.exists(file.path(outDir))){dir.create(file.path(outDir))} 
+
+  
+  MU_count <- inmdata_all %>% dplyr::count(target) %>% filter(n > 10) 
+  inmdata_all2 <- inmdata_all %>% filter(target %in% MU_count$target)%>%
+       droplevels()
+  
+  trDat <- inmdata_all2 
+  trDat_all <- inmdata_all[complete.cases(inmdata_all[ , 7:length(inmdata_all)]),]
+  # Review data: Run the model 
+  
+  table(trDat[, "target"])
+  ggplot(trDat, aes(target)) +
+    geom_bar() + 
+    theme(axis.text.x = element_text(angle = 90))
+
+  trDat_all <- trDat[complete.cases(trDat[ , 7:length(trDat)]),]
+  
+  trDat_slices <- trDat %>%
+    group_by(slice) %>%
+    dplyr::summarise(n.transect = length(unique(transect_id)),
+                     n.sites = length(unique(tid))) %>%
+    pivot_longer(cols = c("n.transect", "n.sites"), names_to = "type", values_to = "number")
+  
+  ggplot(trDat_slices, aes(slice, number, fill = type))+
+    geom_bar(stat = "identity", position = "dodge")+
+    theme(axis.text.x = element_text(angle = 90))+
+    theme_pem() + 
+    scale_fill_discrete_sequential(palette = "Light Grays")
+```
+
+
+```{r run data balance models and predict, echo = FALSE, eval = FALSE}
+# create a subset of data by removing any variables not in model (required for model to    run without error) 
+source(here::here('_functions', 'balance_recipe_WHM.R'))
+    trDat <- trDat_all %>% #dplyr::filter(!slice %in% c(2, 3, 4, 5)) %>% 
+      #dplyr::select(-c( bgc_cat)) %>%
+      mutate(slice = as.factor(slice))#,
+
+   
+ds_iterations <- c( 50, 60, 70, 80, 90, 100)#10, 20, 30, 40,
+smote_iterations <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+
+    #      ds_iterations <- c(25, 50, 75, 100)#, 70, 80, 90, 100)
+    # smote_iterations <- c(0.25, 0.5, .75, 1)#0.1,, 0.7, 0.8, 0.9
+    balance_optimisation2(trDat)
+    balance_optimisation_raw(trDat)
+  
+```
+
+Once all the models have been run we need to assess the optimised balancing option for the given data set. THis portion can be run using the knitr function to produce a report which highlights the best option for optimisation per variant. 
+
+# 1) Optimizing for MAP - UNIT Accuracy 
+
+
+```{r consolidate acc outputs and graph, echo = FALSE, fig.width=8, fig.height=8}
+# consolidate outputs for each balancing method
+      
+ #out_dir
+#out_dir =  "Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/87"
+ #out_dir =  "Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/998/"   
+ out_dir =  "Deception_AOI/3_maps_analysis/models/forest_non_forest/for_nfor_all/999/ESSFmcw"   
+bgc2 = "ESSFmcw"
+data_list <- list.files(file.path(out_dir), full.names = TRUE, pattern = "acc_", recursive = TRUE)
+#data_list <- list.dirs(file.path(out_dir), full.names = TRUE,  recursive = TRUE)
+aresults <- foreach(k = data_list) %do% {
+     #k = data_list[5]
+    print(k)
+    temp <- read.csv(k)
+    temp <- temp %>% dplyr::mutate(filename = paste(basename(k)))
+    temp
+}
+
+
+acc_total <- as.data.frame(rbindlist(aresults, fill = TRUE)) %>%
+  rowwise() %>%
+  mutate(bgc = unlist(strsplit(target, "_"))[1])%>%
+  ungroup()
+
+acc_total$bgc = bgc2
+
+ out_dir =  "Deception_AOI/3_maps_analysis/models/forest_non_forest/for_nfor_all/999/"   
+# calculate predicted vs obs pc for balancing types 
+  bgcs <- unique(as.factor(acc_total$bgc)) %>% droplevels()
+  #bgcs = "SBSmc2"
+ best_results <- foreach(k = levels(bgcs), .combine=rbind) %do% {
+
+        acc_bgc <- acc_total %>% dplyr::filter( bgc %in% k) 
+
+
+best_balance <- acc_bgc %>%
+  group_by(bgc, balance) %>%
+  dplyr::select(balance, bgc, aspat_fpa_overall, aspat_fpa_meanacc, spat_fpa_overall, spat_fpa_meanacc) %>% distinct() %>%
+  summarise(across(where(is.numeric), mean)) %>%
+  rowwise()%>%
+   mutate(acc_sum = aspat_fpa_overall + aspat_fpa_meanacc + spat_fpa_overall + spat_fpa_meanacc)
+raw <- best_balance %>% filter(balance == "raw") %>% mutate(overall = acc_sum) %>% dplyr::select(-balance, -acc_sum)
+
+i = max(best_balance$aspat_fpa_overall)
+best_aspat <- best_balance[which(best_balance$aspat_fpa_overall == i),] %>% 
+  mutate(max = aspat_fpa_overall, maxmetric = "aspat_fpa_overall") %>% dplyr::select(balance, bgc, maxmetric, max,) 
+i = max(best_balance$aspat_fpa_meanacc)
+best_aspat_x <- best_balance[which(best_balance$aspat_fpa_meanacc == i),]%>% 
+  mutate(max = aspat_fpa_meanacc, maxmetric = "aspat_fpa_meanacc") %>% dplyr::select(balance, bgc, maxmetric, max) 
+i = max(best_balance$spat_fpa_overall)
+best_spat <- best_balance[which(best_balance$spat_fpa_overall == i),]%>% 
+  mutate(max = spat_fpa_overall, maxmetric = "spat_fpa_overall") %>% dplyr::select(balance, bgc, maxmetric, max) 
+i = max(best_balance$spat_fpa_meanacc)
+best_spat_x <- best_balance[which(best_balance$spat_fpa_meanacc == i),]%>% 
+  mutate(max = spat_fpa_meanacc, maxmetric = "spat_fpa_meanacc") %>% dplyr::select(balance, bgc, maxmetric, max) 
+i = max(best_balance$acc_sum)
+best_overall <- best_balance[which(best_balance$acc_sum == i),]%>% 
+  mutate(max = acc_sum, maxmetric = "overall") %>% dplyr::select(balance, bgc, maxmetric, max) 
+best_metric <- rbind(best_aspat,best_aspat_x ,best_spat, best_spat_x, best_overall)
+best_metric2 <- best_metric %>% pivot_wider(id_cols = bgc, names_from = maxmetric, values_from = max)
+best_metric3 <- rbind(best_metric2, raw) %>% dplyr::select(-"bgc") %>% data.frame
+best_metric3[c("add"),] <- best_metric3[1,] - best_metric3[2,] 
+best_metric3 <- best_metric3[3,] %>% t()
+best_metric4 <- cbind(best_metric, best_metric3) %>% mutate(balance = str_replace_all(balance, "_", ""))
+best_metric4
+}
+
+ fwrite(best_results, paste0(out_dir, "BestBalancing.csv"))
+  
+ best_results2 <- best_results %>% rowwise() %>% mutate(max = round(max,3)*100, add = round(add,3)*100) %>%
+   mutate(max = ifelse(maxmetric %in% "overall", max/4, max), add = ifelse(maxmetric %in% "overall", add/4, add)) %>% 
+   mutate(best = paste0(balance, " + ", add, "%"))
+ best_results2 <- best_results2 %>% pivot_wider(id_cols = bgc, names_from = maxmetric, values_from = best) %>% 
+   rename(BGC = bgc, Aspatialt0 = aspat_fpa_overall, Aspatialt1 = aspat_fpa_meanacc, Spatialt0 = spat_fpa_overall, Spatialt1 = spat_fpa_meanacc)
+ 
+ fwrite(best_results2, paste0(out_dir, "BestBalancing_Formatted.csv")) 
+require(flextable) 
+best_results2 <- as.data.frame(best_results2)
+#init_flextable_defaults()
+best_balance_flex <- flextable(best_results2) %>% width(width = 1.2) %>% fit_to_width(max_width = 7, inc = 1L, max_iter = 20, unit = "in")
+flextable_dim(best_balance_flex)
+plot(best_balance_flex) 
+save_as_docx(best_balance_flex , path = "./Deception_AOI/results/BestBalance.docx")
+
+```
+
+```{r tune final machine learning model and report}
+# trDat <- trDat_all %>% #dplyr::filter(!slice %in% c(2, 3, 4, 5)) %>% 
+#       #dplyr::select(-c( bgc_cat)) %>%
+#       mutate(slice = as.factor(slice))
+# 
+#         trDat <- trDat %>%
+#           dplyr::select(-target2, -transect_id, -tid, -bgc_cat, -bgc) %>%  drop_na() %>% mutate(target = factor(target)) %>%  droplevels()
+# 
+# downsample_ratio = 100
+# smote_ratio = .7
+# bgc.label = unique(trDat$bgc_cat)
+# 
+# trees_split <- initial_split(trDat, strata = slice)
+# trees_train <- training(trees_split)
+# trees_test <- testing(trees_split)
+# 
+# tune_spec <- rand_forest(
+#   mtry = tune(),
+#   trees = 200,
+#   min_n = tune()
+# ) %>%
+#   set_mode("classification") %>%
+#   set_engine("ranger")
+# 
+#         best_recipe <-  recipe(target ~ ., data = trees_train) %>%
+#           update_role(slice, new_role = "id variable") %>%
+#           step_downsample(target, under_ratio = downsample_ratio) %>%
+#           step_smote(target, over_ratio = smote_ratio , neighbors = 10, skip = TRUE)
+# tune_wf <- workflow() %>%
+#   add_recipe(best_recipe) %>%
+#   add_model(tune_spec)
+# 
+#  set.seed(234)
+# trees_folds <- vfold_cv(trees_train)       
+#         
+# doParallel::registerDoParallel()
+# 
+# set.seed(345)
+# tune_res <- tune_grid(
+#   tune_wf,
+#   resamples = trees_folds,
+#   grid = 10
+# )
+# 
+# tune_res
+# best_tune <- show_best(tune_res, metric = "roc_auc")
+# best_tune2 <- show_best(tune_res, metric = "accuracy")
+# 
+# tune_res %>%
+#   collect_metrics() %>%
+#   filter(.metric == "roc_auc") %>%
+#   dplyr::select(mean, min_n, mtry) %>%
+#   pivot_longer(min_n:mtry,
+#     values_to = "value",
+#     names_to = "parameter"
+#   ) %>%
+#   ggplot(aes(value, mean, color = parameter)) +
+#   geom_point(show.legend = FALSE) +
+#   facet_wrap(~parameter, scales = "free_x") +
+#   labs(x = NULL, y = "AUC")
+```
+
+```{r import additional training points for undersampled units}
+# read in training pt data
+extra_pnts_dir = "./Deception_AOI/1_map_inputs/trainingData/att_5m_extra/"
+etpt = "air_interp_purpose_pts"
+indata2 <- list.files(file.path(extra_pnts_dir), paste0(etpt,"_att.*.gpkg$"), full.names = TRUE)
+keep <- c('Ag', 'Ro', 'Wa', 'LA', "Ww")
+epts <- st_read(indata2) %>% filter(is.na(mapunit2)) %>% filter(mapunit1 %in% keep)
+infiles <- basename(indata2) 
+
+# match the column for map unit based on key 
+# select the target column using the mapkey if needed: 
+  map.key.sub <- map.key %>%
+      dplyr::select(BaseMapUnit, !!sym(mmu)) %>%
+      distinct() %>% dplyr::rename(MapUnit = 2)
+  
+  epts2 <- epts %>% left_join(map.key.sub, by = c("mapunit1" = "BaseMapUnit")) %>%
+    #left_join(map.key.sub, by = c("mapunit2" = "BaseMapUnit")) %>%
+    dplyr::select(-mapunit1) %>%
+    dplyr::rename("target" = MapUnit) %>%
+    dplyr::select(target, everything()) %>% 
+    mutate(target = as.factor(target)) %>% filter(!target %in% "")
+
+# filter columns
+epts <- epts2 %>%
+     dplyr::select(target, any_of(mcols))
+
+  ggplot(epts2, aes(target)) +
+    geom_bar() + 
+    theme(axis.text.x = element_text(angle = 90))
+
+```
+
+```{r create final machine learning model and report}
+downsample_ratio = 90
+smote_ratio = .9
+mtry = 10
+min_n = 2
+
+bgc.label = unique(trDat_all$bgc_cat)
+        BGC_train <- trDat_all %>% filter(!target == "") %>% 
+          dplyr::select(-slice, -target2, -transect_id, -tid, -bgc_cat, -b10, -b05, -b04) %>%  drop_na() %>% mutate(target = factor(target)) %>%  droplevels()
+covar <- colnames(BGC_train)
+epts <- epts %>% data.frame %>% dplyr::select(covar)
+BGC_train <- rbind(BGC_train, epts) %>%  filter(!target %in% "") %>% na.omit()
+
+  ggplot(BGC_train, aes(target)) +
+    geom_bar() + 
+    theme(axis.text.x = element_text(angle = 90))
+  
+ MU_count <- BGC_train  %>% dplyr::count(target) %>% filter(n > 10) 
+  BGC_train <- BGC_train  %>% filter(target %in% MU_count$target) %>% 
+       droplevels()
+  
+    ggplot(BGC_train, aes(target)) +
+    geom_bar() + 
+    theme(axis.text.x = element_text(angle = 90))
+        
+        best_recipe <-  recipe(target ~ ., data = BGC_train) %>%
+          step_corr(threshold = 0.7) %>%
+          step_downsample(target, under_ratio = downsample_ratio) %>%
+          step_smote(target, over_ratio = smote_ratio , neighbors = 10, skip = TRUE)
+        
+        
+        randf_spec <- rand_forest(mtry = mtry, min_n = min_n, trees = 200) %>% 
+          set_mode("classification") %>%
+          set_engine("ranger", importance = "permutation", verbose = FALSE) 
+        
+        pem_workflow <- workflow() %>%
+          add_recipe(best_recipe) %>%
+          add_model(randf_spec)
+        
+        #######################################################
+        PEM_rf1 <- fit(pem_workflow, BGC_train)
+        
+        #final_fit <- pull_workflow_fit(PEM_rf1) # %>%pull(.predictions)
+        final_fit <- extract_fit_parsnip(PEM_rf1)
+  require(vip)      
+     final_fit %>%   vip(num_features = 50)
+     
+     model_vars <- PEM_rf1$fit$fit$fit
+model_vars <- model_vars$variable.importance %>% data.frame
+model_vars2 <- model_vars %>% tibble::rownames_to_column() %>% dplyr::rename(covariate = 1, value = 2) %>% as_tibble() %>% slice_max(value, n=50)
+
+
+#select only top variables and run again
+BGC_train2 <- BGC_train %>% dplyr::select(target,model_vars2$covariate)
+
+        final_recipe <-  recipe(target ~ ., data = BGC_train2) %>%
+          #step_corr(threshold = 0.7) %>%
+          step_downsample(target, under_ratio = downsample_ratio) %>%
+          step_smote(target, over_ratio = smote_ratio , neighbors = 10, skip = TRUE)
+        
+        
+        randf_spec <- rand_forest(mtry = mtry, min_n = min_n, trees = 200) %>% 
+          set_mode("classification") %>%
+          set_engine("ranger", importance = "permutation", verbose = FALSE) 
+        
+        pem_workflow <- workflow() %>%
+          add_recipe(final_recipe) %>%
+          add_model(randf_spec)
+
+        PEM_rf_final <- fit(pem_workflow, BGC_train2)
+        final_fit <- extract_fit_parsnip(PEM_rf_final)
+  require(vip)      
+     final_fit %>%   vip(num_features = 15)
+     
+     saveRDS(final_fit , file = paste(paste0("./PEM_standards_manuscripts/models/", bgc.label, "_tidy_model.rds")))
+
+```
+
+
+```{r consolidate acc outputs and graph, echo = FALSE, fig.width=8, fig.height=8}
+# multi_plot <- function(plotdata, filename){
+# #  svg_px(paste0(filename, ".svg"), width = 400, height = 300)
+# #  plot(plotdata)
+# #  dev.off()
+#   png_retina(paste0(filename, ".png"), width = 700, height = 700,
+#              units = "px", type = "cairo-png", antialias = "default")
+#   plot(plotdata)
+#   dev.off()
+# }
+# 
+# 
+# 
+# 
+# # PART 1: Generate Aspatial best optimisation for Unweighted results
+# # 
+# # # negative number = under predict and positive = over predicted)
+# 
+# df_all <- acc_total %>%
+#   group_by(target, balance, bgc) %>%
+#   dplyr::select(target, balance, bgc, trans.tot, pred.tot, trans.sum) %>%
+#   summarise(across(where(is.numeric), sum)) %>%
+#   rowwise()%>%
+#   mutate(pred.ratio = pred.tot - trans.tot,
+#          pred.obs.pc = (pred.ratio/trans.tot) * 100) %>%
+#   mutate(pred.obs.pc = ifelse(pred.tot == 0, -100, pred.obs.pc),
+#          pred.obs.type = ifelse(pred.obs.pc <0,"under predict", "over predict"),
+#          pred.obs.total = ifelse(pred.obs.pc <0, pred.obs.pc*-1, pred.obs.pc)) %>%
+#    ungroup()
+# 
+# 
+# df_bgc <- unique(df_all$bgc)
+# 
+# for (bgcoi in df_bgc){
+#    #bgcoi = df_bgc[4]
+#    print(bgcoi)
+# 
+#       outDir <- file.path(out_dir, bgcoi)
+# 
+#       df <- df_all %>%
+#         dplyr::filter(bgc == bgcoi) %>%
+#         dplyr::select(-bgc)
+# 
+#       df  <- df  %>%
+#         mutate(bal_type = case_when(
+#            str_detect(balance, "ds_") ~ "downsample",
+#            str_detect(balance, "smote_") ~ "smote",
+#            balance == "raw"~ "raw"))
+# 
+#       df <- df %>%
+#          rowwise() %>%
+#          mutate(bal_type = ifelse(str_detect(balance, "sm_"), "ds_sm", bal_type))
+# 
+# 
+#       downsample <- df %>% filter(bal_type %in% c("downsample", "raw"))
+#       smote <- df %>% filter(bal_type %in% c("smote", "raw"))
+#       ds_sm <- df %>% filter(bal_type %in% c("ds_sm", "raw"))
+# 
+# 
+#       # Plot the top 20 iterations:
+# 
+#       df_total <- df %>%
+#         group_by(balance, bal_type) %>%
+#         summarise(mu_devation = sum(pred.obs.total),
+#                   mu_var = var(pred.obs.total),
+#                   mu_mean = mean(pred.obs.total),
+#                   mu_sd = sd(pred.obs.total))
+# 
+#       df_raw <- df_total %>% filter(balance == "raw")
+# 
+#       df_total_order <- df_total %>% arrange(mu_devation)
+#       #print(bgcoi)
+#       #print(df_total_order)
+# 
+#       df_total_order <- df_total_order[1:16,]
+#       df_total_order <- df_total_order %>%
+#         bind_rows(df_raw)
+# 
+#       df_total_order_table <- df_total_order %>%
+#         mutate(across(where(is.numeric), round)) %>%
+#         dplyr::select(-balance)
+# 
+# 
+#       # plot the top 20options:
+# 
+#       ds_data <- df %>%
+#          filter(balance == "raw" | balance %in%  df_total_order$balance)
+# 
+#       ds_plot <- ggplot( ds_data , aes(x=target, y=pred.obs.pc)) +
+#           geom_bar(stat='identity',  aes(fill = pred.obs.type), width=.5) +
+#           coord_flip(ylim =c(-100, 110)) +
+#           labs(title = paste0("Top ranked balancing deviation plot :", bgcoi),
+#                subtitle = "mean deviation (blue), standard deviation (black)") +
+#           facet_wrap(~ balance)
+#       ds_plot
+# 
+#       text_ht <- length(unique(ds_data$target))
+# 
+#       dat_text <- df_total_order
+#       dat_text$label <- sprintf(
+#         "%s, %s",
+#        round(dat_text$mu_mean,2),
+#        str_extract(dat_text$balance,"^.{0}")
+#       )
+# 
+#       dat_text$label2 <- sprintf(
+#         "%s, %s",
+#        round(dat_text$mu_sd,2),
+#        str_extract(dat_text$balance,"^.{0}")
+#       )
+# 
+#       ds_plot <- ds_plot +
+#         geom_text(data = dat_text,
+#                   size = 3,
+#                   mapping = aes(x = text_ht , y = 90, label = label),
+#                   colour = "blue"
+#         ) +
+#         geom_text(data = dat_text,
+#                   size = 3,
+#                   mapping = aes(x = text_ht -1 , y = 90, label = label2),
+#                   colour = "black"
+#         )
+# 
+# 
+#       multi_plot(ds_plot, file.path(outDir,"balance_optimise_plot_aspat"))
+#       write.csv(df_total, file.path(outDir, "Balancing_summary_aspat.csv"))
+# 
+# }
+# 
+# 
+# ## PART 2:  REPEAT THIS FOR THE SPATIALLY EXPLICIT DATA 
+# 
+# df_all_sp <- acc_total %>%
+#   group_by(target, balance, bgc) %>%
+#   dplyr::select(target, balance, bgc, trans.tot, spat_p_correct, trans.sum) %>%
+#   summarise(across(where(is.numeric), sum)) %>%
+#   rowwise() %>%
+#   mutate(pred.ratio = spat_p_correct - trans.tot,
+#          pred.obs.pc = (pred.ratio/trans.tot) * 100) %>%
+#   mutate(pred.obs.pc = ifelse(spat_p_correct == 0, -100, pred.obs.pc),
+#          pred.obs.type = ifelse(pred.obs.pc <0,"under predict", "over predict"),
+#          pred.obs.total = ifelse(pred.obs.pc <0, pred.obs.pc*-1, pred.obs.pc)) %>%
+#         ungroup()
+# 
+# 
+# df_bgc <- unique(df_all_sp$bgc)
+# 
+# for (bgcoi in df_bgc){
+#    #bgcoi = df_bgc[2]
+#    print(bgcoi)
+#   
+#       outDir <- file.path(out_dir, bgcoi)
+#       
+#       df <- df_all_sp %>% 
+#         dplyr::filter(bgc == bgcoi) %>%
+#         dplyr::select(-bgc)
+# 
+#       # df  <- df  %>%
+#       #   mutate(bal_type = case_when(
+#       #      str_detect(balance, "ds_") ~ "downsample",
+#       #      str_detect(balance, "smote_") ~ "smote",
+#       #      balance == "raw"~ "raw"))
+#       #  
+#       # df <- df %>% 
+#       #    rowwise() %>%
+#       #    mutate(bal_type = ifelse(str_detect(balance, "sm_"), "ds_sm", bal_type))
+#       # 
+#       # 
+#       # downsample <- df %>% filter(bal_type %in% c("downsample", "raw"))
+#       # smote <- df %>% filter(bal_type %in% c("smote", "raw"))
+#       # ds_sm <- df %>% filter(bal_type %in% c("ds_sm", "raw"))
+#     
+#       
+#       # Plot the top 20 iterations: 
+#       
+#       df_total <- df %>%
+#         group_by(balance) %>%
+#         summarise(mu_devation = sum(pred.obs.total),
+#                   mu_var = var(pred.obs.total),
+#                   mu_mean = mean(pred.obs.total),
+#                   mu_sd = sd(pred.obs.total))
+#       
+#       df_raw <- df_total %>% filter(balance == "raw")
+#       
+#       df_total_order <- df_total %>% arrange(mu_devation) 
+#       #print(bgcoi)
+#       #print(df_total_order)  
+#       
+#       df_total_order <- df_total_order[1:16,]
+#       df_total_order <- df_total_order %>%
+#         bind_rows(df_raw)
+#       
+#       df_total_order_table <- df_total_order %>%
+#         mutate(across(where(is.numeric), round)) %>%
+#         dplyr::select(-balance)
+#       
+# 
+#       # plot the top 20options: 
+#       
+#       ds_data <- df %>%
+#          filter(balance == "raw" | balance %in%  df_total_order$balance)
+#        
+#       ds_plot <- ggplot( ds_data , aes(x=target, y=pred.obs.pc)) +
+#           geom_bar(stat='identity',  aes(fill = pred.obs.type), width=.5) +
+#           coord_flip(ylim =c(-100, 110)) +
+#           labs(title = paste0("Top ranked balancing deviation plot :", bgcoi),
+#                subtitle = "mean deviation (blue), standard deviation (black)") +
+#           facet_wrap(~ balance)
+#       ds_plot
+#       
+#       text_ht <- length(unique(ds_data$target))
+#       
+#       dat_text <- df_total_order
+#       dat_text$label <- sprintf(
+#         "%s, %s",
+#        round(dat_text$mu_mean,2),
+#        str_extract(dat_text$balance,"^.{0}")
+#       )
+#       
+#       dat_text$label2 <- sprintf(
+#         "%s, %s",
+#        round(dat_text$mu_sd,2),
+#        str_extract(dat_text$balance,"^.{0}")
+#       )
+# 
+#       ds_plot <- ds_plot +
+#         geom_text(data = dat_text,
+#                   size = 3,
+#                   mapping = aes(x = text_ht , y = 90, label = label),
+#                   colour = "blue"
+#         ) + 
+#         geom_text(data = dat_text,
+#                   size = 3,
+#                   mapping = aes(x = text_ht -1 , y = 90, label = label2),
+#                   colour = "black"
+#         ) 
+#       
+# 
+#       multi_plot(ds_plot, file.path(outDir,"balance_optimise_plot_spat"))
+#       write.csv(df_total, file.path(outDir, "Balancing_summary_spat.csv"))
+# 
+# }
+# 
+# # looking at the results the best models ; 
+# 
+# ## MAP UNIT ACCURACY 
+# 
+# ## ESSFmc 
+#   # aspat : ds_40_sm_0.7, ds_40_sm_0.8, ds_40_sm_0.6
+#   # spat  : ds_15_sm_0.2, ds_15_sm_0.4, ds_15_sm_0.3
+# 
+# 
+# ## SBSmc2
+#   # aspat: ds_30_sm_0.5, ds_30_sm_0.4, ds_30_sm_0.3
+#   # spat : ds_15_sm_0.5, ds_30_sm_0.1, ds_15_sm_0.2
+# 
+# 
+# ## ESSFmcw
+#   # aspat : ds_20_sm_0.8	, ds_20_sm_0.9	smote_0.9	smote
+#   # spat : ds_15_sm_0.8,  ds_15_sm_0.9, ds_40_sm_0.8,
+# 
+# 
+# # plot the range of values for map unit spatial optimised 
+# 
+# for (bgcoi in df_bgc){
+#   
+#   # bgcoi = df_bgc[2]
+#    print(bgcoi)
+#   
+#       outDir <- file.path(out_dir, bgcoi)
+#       
+#       df <- df_all_sp %>% 
+#         dplyr::filter(bgc == bgcoi) %>%
+#         dplyr::select(-bgc) %>%
+#         filter(!is.na(balance))
+# 
+#       df_total <- df %>%
+#         group_by(balance) %>%
+#         summarise(mu_devation = sum(pred.obs.total),
+#                   mu_var = var(pred.obs.total),
+#                   mu_mean = mean(pred.obs.total),
+#                   mu_sd = sd(pred.obs.total))
+#       
+#       df_total_order <- df_total %>% arrange(mu_devation) 
+#      
+#       # plot for map unit deviation 
+#       pp <- ggplot(data = df_total_order, aes(y = mu_mean, x = balance, colour = balance)) + 
+#         geom_point(stat = "identity", size = 3) + 
+#         theme(legend.position="none") + 
+#         ylab("map unit deviation mean") +
+#         xlab("balance type") +
+#         ggtitle(paste0(bgcoi, " map unit spatial accuracy"))+
+#         theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+#       
+#       # plot for the map unit deviation vs overall spatial accuracy 
+#        bsRes <- acc_total %>%
+#            mutate(across(where(is.numeric), ~ replace_na(.,0))) %>%
+#            filter(bgc == bgcoi, 
+#                   acc_type == "test_estimate") %>%
+#            dplyr::select(-acc_type)
+#        
+#        bsRes_all <- bsRes %>% 
+#          group_by(slice, balance) %>%
+#          dplyr::select(c(balance, slice, spat_p_meanacc)) %>%
+#          distinct()%>%
+#          group_by(balance)%>%
+#          summarise(across(.cols = c(spat_p_meanacc), mean, n = n()))
+#       
+#       bsRes_all <- bsRes_all %>%
+#         left_join(df_total_order)
+#        
+#       
+#       po_lable_unweighted <- ggplot(bsRes_all, aes( x = spat_p_meanacc , y = mu_mean, colour = balance)) + #, shape = balance)) + 
+#          #geom_point(stat = "identity", size = 3) +
+#          geom_jitter(stat = "identity", size = 3, width = 0.001)+
+#          geom_text(aes(label = balance), hjust = 0.5,  vjust = -1)+
+#       #   ylim(0,1000) + 
+#         xlab("Spatial mean site accuracy") + 
+#         ylab("Map unit deviation") +
+#           ggtitle(paste0("Unweighted (Map Unit) predicted spatial deviation vs Spatial unweighted accuracy: ", bgcoi))+
+#        theme(legend.position="none") 
+#       
+#         po_unweighted <- ggplot(bsRes_all, aes( x = spat_p_meanacc , y = mu_mean, colour = balance)) + #, shape = balance)) + 
+#         # geom_point(stat = "identity", size = 3) +
+#          geom_jitter(stat = "identity", size = 3, width = 0.001)+
+# 
+#         xlab("Spatial mean site accuracy") + 
+#         ylab("Map unit deviation") +
+#           ggtitle(paste0("Unweighted (Map Unit) predicted spatial deviation vs Spatial unweighted accuracy: ", bgcoi))+
+#        theme(legend.position="none") 
+#       
+#         
+#     multi_plot(po_unweighted, file.path(outDir,"weighted_optimise_plot_spat"))
+#       
+#          
+# } # end of bgc loop
+
+```
+
+Now we can plot histogram of optimum smoting 
+
+```{r}
+# # Generate models using the  optimised data set values. note you need to run blocks above to continue with the coding.
+# 
+# # Essfmc
+# 
+#   xx <- names(bgc_pts_subzone[3])
+# 
+#   inmdata_all = bgc_pts_subzone[[xx]]
+#   out_name = names(bgc_pts_subzone[xx])
+#   
+#   outDir = file.path(paste(out_dir, out_name, sep = "/"))
+# 
+#   MU_count <- inmdata_all %>% dplyr::count(target) %>% filter(n > 10) 
+#   inmdata_all <- inmdata_all %>% filter(target %in% MU_count$target)%>%
+#        droplevels()
+#   
+#   trDat <- inmdata_all 
+#   
+#   # Review data: Run the model 
+#   
+#   table(trDat[, "target"])
+#   essfmcw_raw <- ggplot(trDat, aes(target)) +
+#       geom_bar() + 
+#       theme(axis.text.x = element_text(angle = 90))
+# 
+#   # run the optimal component and output figure 
+#   
+#   trDat_bal  <- trDat %>%
+#         dplyr::select(-slice, -target2, -transect_id, -bgc_cat,-tid) %>%
+#         droplevels()
+#    
+#   
+#    null_recipe <- 
+#           recipe(target ~ ., data = trDat_bal) %>%
+#           step_downsample(target, under_ratio = 15) %>%
+#           step_smote(target, over_ratio = 0.8 , neighbors = 2) %>%
+#           prep() %>%
+#           juice()
+#   
+#     essfmcw_bal <- ggplot( null_recipe , aes(target)) +
+#         geom_bar() + 
+#         theme(axis.text.x = element_text(angle = 90))
+#   
+# ## SBSmc2
+# 
+#     
+#   xx <- names(bgc_pts_subzone[2])
+# 
+#   inmdata_all = bgc_pts_subzone[[xx]]
+#   out_name = names(bgc_pts_subzone[xx])
+#   
+#   outDir = file.path(paste(out_dir, out_name, sep = "/"))
+# 
+#   MU_count <- inmdata_all %>% dplyr::count(target) %>% filter(n > 10) 
+#   inmdata_all <- inmdata_all %>% filter(target %in% MU_count$target)%>%
+#        droplevels()
+#   
+#   trDat <- inmdata_all 
+#   
+#   # Review data: Run the model 
+#   
+#   table(trDat[, "target"])
+#   SBSmc_raw <- ggplot(trDat, aes(target)) +
+#       geom_bar() + 
+#       theme(axis.text.x = element_text(angle = 90))
+# 
+#   # run the optimal component and output figure 
+#   trDat_bal  <- trDat %>%
+#         dplyr::select(-slice, -target2, -transect_id, -bgc_cat,-tid) %>%
+#         droplevels()
+#    
+#   
+#    null_recipe <- 
+#           recipe(target ~ ., data = trDat_bal) %>%
+#           step_downsample(target, under_ratio = 15) %>%
+#           step_smote(target, over_ratio = 0.5 , neighbors = 2) %>%
+#           prep() %>%
+#           juice()
+# 
+#     sbsmc_bal <- ggplot( null_recipe , aes(target)) +
+#         geom_bar() + 
+#         theme(axis.text.x = element_text(angle = 90))
+#   
+# 
+# ###  ESSFmcw
+#     
+#   xx <- names(bgc_pts_subzone[1])
+# 
+#   inmdata_all = bgc_pts_subzone[[xx]]
+#   out_name = names(bgc_pts_subzone[xx])
+#   
+#   outDir = file.path(paste(out_dir, out_name, sep = "/"))
+# 
+#   MU_count <- inmdata_all %>% dplyr::count(target) %>% filter(n > 10) 
+#   inmdata_all <- inmdata_all %>% filter(target %in% MU_count$target)%>%
+#        droplevels()
+#   
+#   trDat <- inmdata_all 
+#   
+#   # Review data: Run the model 
+#   
+#   table(trDat[, "target"])
+#   essfmc_raw <- ggplot(trDat, aes(target)) +
+#       geom_bar() + 
+#       theme(axis.text.x = element_text(angle = 90))
+# 
+#   # run the optimal component and output figure 
+#   trDat_bal  <- trDat %>%
+#         dplyr::select(-slice, -target2, -transect_id, -bgc_cat,-tid) %>%
+#         droplevels()
+#    
+#   
+#    null_recipe <- 
+#           recipe(target ~ ., data = trDat_bal) %>%
+#           step_downsample(target, under_ratio = 15) %>%
+#           step_smote(target, over_ratio = 0.2 , neighbors = 2) %>%
+#           prep() %>%
+#           juice()
+#   
+#     essfmc_bal <- ggplot( null_recipe , aes(target)) +
+#         geom_bar() + 
+#         theme(axis.text.x = element_text(angle = 90))
+#   
+#     
+#     
+# mumap <- grid.arrange(essfmc_raw,   essfmc_bal, SBSmc_raw , sbsmc_bal ,essfmcw_raw, essfmcw_bal, nrow = 3)
+
+    
+```
+
+
+
+### PART 2: Optimising for Overall accuracy metrics 
+
+Above we optimise for map unit accuracy, howver we want to also investigate the impact of optimising for overall accuracy. 
+
+In this step we can use the curve plotting the overall accuracy vs 
+
+
+```{r}
+# 
+# # consolidate outputs for each balancing method
+#       
+#  #out_dir
+# out_dir =  "Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/998"
+#       
+# data_list <- list.files(file.path(out_dir), full.names = TRUE, pattern = "acc_", recursive = TRUE)
+# 
+# aresults <- foreach(k = data_list) %do% {
+#      #k = levels(slices)[5]
+#     print(k)
+#     temp <- read.csv(k)
+#     temp <- temp %>% dplyr::mutate(filename = paste(basename(k)))
+#     temp
+# }
+# 
+# acc_total <- as.data.frame(rbindlist(aresults, fill = TRUE)) %>%
+#   rowwise() %>%
+#   mutate(bgc = unlist(strsplit(target, "_"))[1])%>%
+#   ungroup()
+# 
+# 
+# # plot the overall aspatial accuracy measure with the overall divergence value
+# 
+#  bsRes <- acc_total %>%
+#      mutate(across(where(is.numeric), ~ replace_na(.,0)))
+#  
+#  bsRes_all <- bsRes %>%
+#    dplyr::select(bgc, balance, aspat_p_overall, aspat_p_meanacc,
+#                  spat_p_overall, spat_p_meanacc, slice) %>%
+#    distinct() %>%
+#    group_by(balance, bgc)
+#    
+#   bsRes_all_mean <- bsRes_all %>%
+#     summarise(across(.cols = c(aspat_p_overall, aspat_p_meanacc, spat_p_overall,   spat_p_meanacc), list(mean = mean, sd = sd), n = n())) %>%
+#     filter(!is.na(balance))
+#    
+# aspat <- ggplot(bsRes_all_mean, aes( x = aspat_p_overall_mean , y = aspat_p_meanacc_mean, colour = balance)) +
+#    facet_wrap(~bgc, nrow = 3, scales = "free")+ 
+#    geom_point(stat = "identity", size = 3) +
+#     xlab("Aspatial mean site accuracy") + 
+#     ylab("Aspatial overall accuracy") +
+#     #theme(legend.position="none") +
+#     ggtitle("Aspatial area weighted (overall) vs unweighted (map accuracy)")
+# 
+# aspat 
+# 
+#       
+# po_lable <- ggplot(bsRes_all_mean, aes( y = aspat_p_overall_mean , x = balance, colour = balance)) + #, shape = balance)) + 
+#       facet_wrap(~bgc, nrow = 3, scales = "free_y")+ 
+#       geom_point(stat = "identity", size = 3) +
+#       #geom_text(aes(label = balance), hjust = 0.5,  vjust = -1)+
+#         # ylim(0,1000) + 
+#         xlab("Spatial mean site accuracy") + 
+#         ylab("Map unit deviation") +
+#           #ggtitle(paste0("Area-weighted (Overall) aspatial accuracy: ", bgcoi))+
+#        theme(legend.position="none") +
+#   theme(axis.text.x = element_text(angle = 90))
+# po_lable 
+#       
+# po <- ggplot(bsRes_all, aes( x = spat_p_meanacc , y = mu_mean, colour = balance)) + #, shape = balance)) + 
+#         # geom_point(stat = "identity", size = 3) +
+#          geom_jitter(stat = "identity", size = 3, width = 0.001)+
+# 
+#         xlab("Spatial mean site accuracy") + 
+#         ylab("Map unit deviation") +
+#           ggtitle(paste0("Unweighted (Map Unit) predicted spatial deviation vs Spatial unweighted accuracy: ", bgcoi))+
+#        theme(legend.position="none") 
+# 
+# 
+# 
+# # spat <- ggplot(bsRes_all, aes( x = spat_p_meanacc , y = spat_p_overall, colour = balance)) +
+# #    facet_wrap(~bgc, nrow = 3, scales = "free")+ 
+# #    geom_point(stat = "identity", size = 3) +
+# #   xlab("Spatial mean site accuracy") + 
+# #   ylab("Spatial overall accuracy") +
+# #   theme(legend.position="none") +
+# #   ggtitle("Spatial area weighted vs unweighted")
+# # 
+# # spat
+
+```
+
+Select the top ranked models for the overall accuracy
+
+```{r}
+# 
+# essfmc <- bsRes_all_mean %>% 
+#   dplyr::filter(bgc == "ESSFmc") %>%
+#   dplyr::select(c(-spat_p_overall_mean, -spat_p_meanacc_mean, -spat_p_meanacc_sd, -spat_p_overall_sd))%>%
+#   #mutate(all_spat = aspat_p_overall + spat_p_overall) %>%
+#   arrange(desc(aspat_p_overall_mean)) #%>% # 0.72 - 0.81
+#   #arrange(desc(spat_p_overall)) #%>%   # 0.34 - 0.45
+#   #arrange(desc(all_spat))
+# 
+# 
+# # top ranked aspat: ds_90_sm_0.9, ds_70_sm_0.9, ds_60_sm_0.9
+# # top ranked spat_overal = smote_0.2
+#   
+# essfmcw <- bsRes_all_mean %>% 
+#   dplyr::filter(bgc == "ESSFmcw") %>%
+#   dplyr::select(c(-spat_p_overall_mean, -spat_p_meanacc_mean, -spat_p_meanacc_sd, -spat_p_overall_sd))%>%
+#   arrange(desc(aspat_p_overall_mean)) #%>% #(0.79 - 0.83)
+#   #arrange(desc(spat_p_overall)) #%>% # 0.54 - 0.58
+#  # arrange(desc(all_spat))
+# 
+# # top ranked aspat : ds_20_sm_0.9,  ds_20_sm_0.5, smote_0.8
+# # Top ranked spat_data = ds_20
+# 
+# sbs <- bsRes_all_mean %>% 
+#   dplyr::filter(bgc == "SBSmc2")%>%
+#   dplyr::select(c(-spat_p_overall_mean, -spat_p_meanacc_mean, -spat_p_meanacc_sd, -spat_p_overall_sd))%>%
+#   arrange(desc(aspat_p_overall_mean))  #(0.77 - 0.87)
+#   #arrange(desc(spat_p_overall)) #%>% # 0.48 - 0.58
+#  # arrange(desc(all_spat))
+# 
+# # top ranked aspat :  ds_70_sm_0.3  ds_80_sm_0.2, ds_80_sm_0.4
+# # top ranked spat _ overall = ds_100_sm_0.1
+# 
+
+```
+
+
+Now we can plot histogram of optimum smoting for overall data 
+
+```{r}
+# # you will need to run blocks above to contiue with the coding 
+# 
+#   xx <- names(bgc_pts_subzone[3])
+# 
+#   inmdata_all = bgc_pts_subzone[[xx]]
+#   out_name = names(bgc_pts_subzone[xx])
+#   
+#   outDir = file.path(paste(out_dir, out_name, sep = "/"))
+# 
+#   MU_count <- inmdata_all %>% dplyr::count(target) %>% filter(n > 10) 
+#   inmdata_all <- inmdata_all %>% filter(target %in% MU_count$target)%>%
+#        droplevels()
+#   
+#   trDat <- inmdata_all 
+#   
+#   # Review data: Run the model 
+#   
+#   table(trDat[, "target"])
+#   essfmcw_raw <- ggplot(trDat, aes(target)) +
+#       geom_bar() + 
+#       theme(axis.text.x = element_text(angle = 90))
+# 
+#   # run the optimal component and output figure 
+#   
+#     trDat_bal  <- trDat %>%
+#         dplyr::select(-slice, -target2, -transect_id, -bgc_cat,-tid) %>%
+#         droplevels()
+#    
+#   #ds_90_sm_0.9
+#    null_recipe <- 
+#           recipe(target ~ ., data = trDat_bal) %>%
+#           step_downsample(target, under_ratio = 20) %>%
+#           step_smote(target, over_ratio = 0.9 , neighbors = 2) %>%
+#           prep() %>%
+#           juice()
+#   
+#     essfmcw_bal <- ggplot( null_recipe , aes(target)) +
+#         geom_bar() + 
+#         theme(axis.text.x = element_text(angle = 90))
+# 
+#     
+#     ### SBSmc
+#      xx <- names(bgc_pts_subzone[2])
+# 
+#   inmdata_all = bgc_pts_subzone[[xx]]
+#   out_name = names(bgc_pts_subzone[xx])
+#   
+#   outDir = file.path(paste(out_dir, out_name, sep = "/"))
+# 
+#   MU_count <- inmdata_all %>% dplyr::count(target) %>% filter(n > 10) 
+#   inmdata_all <- inmdata_all %>% filter(target %in% MU_count$target)%>%
+#        droplevels()
+#   
+#   trDat <- inmdata_all 
+#   
+#   # Review data: Run the model 
+#   
+#   table(trDat[, "target"])
+#   SBSmc_raw <- ggplot(trDat, aes(target)) +
+#       geom_bar() + 
+#       theme(axis.text.x = element_text(angle = 90))
+# 
+#   # run the optimal component and output figure 
+#   trDat_bal  <- trDat %>%
+#         dplyr::select(-slice, -target2, -transect_id, -bgc_cat,-tid) %>%
+#         droplevels()
+#    
+#   
+#    null_recipe <- 
+#           recipe(target ~ ., data = trDat_bal) %>%
+#           step_downsample(target, under_ratio = 70) %>%
+#           step_smote(target, over_ratio = 0.3 , neighbors = 2) %>%
+#           prep() %>%
+#           juice()
+#  # ds_70_sm_0.3
+#     sbsmc_bal <- ggplot( null_recipe , aes(target)) +
+#         geom_bar() + 
+#         theme(axis.text.x = element_text(angle = 90))
+# 
+#     
+#     
+#     # ESSFmc
+#   xx <- names(bgc_pts_subzone[1])
+# 
+#   inmdata_all = bgc_pts_subzone[[xx]]
+#   out_name = names(bgc_pts_subzone[xx])
+#   
+#   outDir = file.path(paste(out_dir, out_name, sep = "/"))
+# 
+#   MU_count <- inmdata_all %>% dplyr::count(target) %>% filter(n > 10) 
+#   inmdata_all <- inmdata_all %>% filter(target %in% MU_count$target)%>%
+#        droplevels()
+#   
+#   trDat <- inmdata_all 
+#   
+#   # Review data: Run the model 
+#   
+#   table(trDat[, "target"])
+#   essfmc_raw <- ggplot(trDat, aes(target)) +
+#       geom_bar() + 
+#       theme(axis.text.x = element_text(angle = 90))
+# 
+#   # run the optimal component and output figure 
+#   trDat_bal  <- trDat %>%
+#         dplyr::select(-slice, -target2, -transect_id, -bgc_cat,-tid) %>%
+#         droplevels()
+#    
+#  # ds_90_sm_0.9,
+#    null_recipe <- 
+#           recipe(target ~ ., data = trDat_bal) %>%
+#            step_downsample(target, under_ratio = 90) %>%
+#           step_smote(target, over_ratio = 0.9 , neighbors = 2) %>%
+#           prep() %>%
+#           juice()
+#   
+#     essfmc_bal <- ggplot( null_recipe , aes(target)) +
+#         geom_bar() + 
+#         theme(axis.text.x = element_text(angle = 90))
+#   
+# grid.arrange( essfmc_raw,  essfmc_bal, SBSmc_raw , sbsmc_bal ,essfmcw_raw, essfmcw_bal, nrow = 3)
+
+```
+
+
+
+
+## Part 3 Theta weighted optimised 
+
+```{r}
+
+# out_dir =  "Deception_AOI/3_maps_analysis/models/forest/fore_mu_bgc/87"
+#       
+# data_list <- list.files(file.path(out_dir), full.names = TRUE, pattern = "acc_", recursive = TRUE)
+# 
+# aresults <- foreach(k = data_list) %do% {
+#      #k = levels(slices)[5]
+#     print(k)
+#     temp <- read.csv(k)
+#     temp
+# }
+# 
+# acc_total <- as.data.frame(rbindlist(aresults, fill = TRUE)) %>%
+#   rowwise() %>%
+#   mutate(bgc = unlist(strsplit(target, "_"))[1])%>%
+#   ungroup()
+# 
+# head(acc_total)
+# 
+# 
+# 
+# acc_total_b <- acc_total %>% filter(bgc == "SBSmc2") %>%
+#   filter(!is.na(balance))
+# #SBSmc2") #"ESSFmcw") # 
+# 
+# theta_vals <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6)
+# 
+# 
+# theta_vals_results <- foreach(t = theta_vals) %do% { # loop theta values 
+#    # t = theta_vals[1]
+#     print(t)
+#     
+#     data_list <- unique(acc_total_b$balance)
+#     
+#     theta_results <- foreach(k = data_list) %do% { # loop the balance values
+#         
+#         #k = unique(acc_total_b$balance)[1]
+#         print(k)
+#         temp <- acc_total_b %>%
+#           filter(balance == k)
+#         
+#         temp_out <- theta_accuracy(temp, theta = t)
+#         temp_out <- temp_out %>% ungroup() %>% 
+#           dplyr::select(spat_p_theta, aspat_p_theta) %>% 
+#           distinct() %>% 
+#           summarise(mutate(across(ends_with("theta"), ~ mean(.x)))) %>%
+#           mutate(balance = k)
+#     
+#         }
+#     
+#     theta_df <- as.data.frame(rbindlist(theta_results, fill = TRUE)) %>%
+#       rowwise() %>%
+#       mutate(theta = t)
+#     
+# }
+#     
+#  theta_df_all <- as.data.frame(rbindlist(theta_vals_results , fill = TRUE)) %>%
+#       rowwise() 
+# 
+#  
+# # Plot the spatial and aspatial accuracy theta. 
+# 
+# th_spat <- ggplot( theta_df_all, aes( y = spat_p_theta , x= balance, colour = theta)) + #, shape = balance)) + 
+#       #facet_wrap(~bgc, nrow = 3, scales = "free_y")+ 
+#       geom_point(stat = "identity", size = 3) +
+#       #geom_text(aes(label = balance), hjust = 0.5,  vjust = -1)+
+#         # ylim(0,1000) + 
+#         xlab("Balance") + 
+#         ylab("Spatial theta accuracy") +
+#           ggtitle(paste0("theta weighted spatial accuracy: ", bgcoi))+
+#        #theme(legend.position="none") #+
+#   theme(axis.text.x = element_text(angle = 90))
+#       
+#  th_spat
+#  
+#  
+#  th_aspat <- ggplot( theta_df_all, aes( y = aspat_p_theta , x= balance, colour = theta)) + #, shape = balance)) + 
+#       #facet_wrap(~bgc, nrow = 3, scales = "free_y")+ 
+#       geom_point(stat = "identity", size = 3) +
+#       #geom_text(aes(label = balance), hjust = 0.5,  vjust = -1)+
+#         # ylim(0,1000) + 
+#         xlab("Balance") + 
+#         ylab("Aspatial theta accuracy") +
+#           ggtitle(paste0("theta weighted aspatial accuracy: ", bgcoi))+
+#        #theme(legend.position="none") #+
+#   theme(axis.text.x = element_text(angle = 90))
+#       
+#  th_aspat
+#  
+#  
+# # select the top values for spat_p and aspat_p theta 
+# out_top <-  theta_df_all %>%
+#   group_by(theta) %>%
+#   summarise(spat_p_theta_t = max(spat_p_theta),
+#             aspat_p_theta_t = max(aspat_p_theta)) 
+# 
+# 
+# 
+# # # plot all the range of values 
+# # 
+# # out_top_bal_spat <- theta_df_all %>%
+# #   filter(spat_p_theta %in% out_top$spat_p_theta_t)
+# # 
+# # out_top_bal_aspat <- theta_df_all %>%
+# #   filter(aspat_p_theta %in% out_top$aspat_p_theta_t)
+# # 
+# # 
+# # #out_top <- left_join(out_top, out_top_bal)
+# # 
+# # 
+# # all <- bsRes_all %>%
+# #   filter(bgc == "SBSmc2") %>% 
+# #   filter(!is.na(balance))
+# # 
+# # out_top_bal_aspat <- left_join(out_top_bal_aspat, all)
+# # 
+# # 
+# # 
+# # aspat <- ggplot(all, aes( x = aspat_p_meanacc , y = aspat_p_overall, colour = balance, label = balance)) +
+# #   geom_text(aes(label=balance),hjust=0, vjust=0)+ 
+# #    geom_point(stat = "identity", size = 3) +
+# #   xlab("Aspatial mean site accuracy") + 
+# #   ylab("Aspatial overall accuracy") +
+# #   theme(legend.position="none") +
+# #   ggtitle("Aspatial area weighted vs unweighted") +
+# #  # geom_point(out_top_bal_aspat, aes(x = aspat_p_meanacc , y = aspat_p_overall, label = theta))+
+# #    geom_text(aes(label=theta),hjust=0, vjust=0)
+# # 
+# # aspat 
+# # 
+# # spat <- ggplot(all, aes( x = spat_p_meanacc , y = spat_p_overall, colour = balance,label = balance)) +
+# #    geom_text(aes(label=balance),hjust=0, vjust=0)+ 
+# #   geom_point(stat = "identity", size = 3) +
+# #   xlab("Spatial mean site accuracy") + 
+# #   ylab("Spatial overall accuracy") +
+# #   theme(legend.position="none") +
+# #   ggtitle("Spatial area weighted vs unweighted")
+# # 
+# # spat
+# # 
+# 
+
+
+```
+
+# explore the impact of Theta 
+
+```{r}
+# # Look at the top rated models and identify theta in each of these: 
+# 
+# ## Overall area wt (aspatial values)
+# 
+# #essfmcw: ds_20_sm_0.9,  ds_20_sm_0.5, smote_0.8
+# #sbsmc2: ds_70_sm_0.3  ds_80_sm_0.2, ds_80_sm_0.4
+# #essfmc: ds_90_sm_0.9, ds_70_sm_0.9, ds_60_sm_0.9
+# 
+# ## Map Unit Unweighted (spatial values)
+# 
+# #essfmcw: ds_15_sm_0.8,  ds_15_sm_0.9, ds_40_sm_0.8,
+# #sbsmc2: ds_15_sm_0.5, ds_30_sm_0.1, ds_15_sm_0.2
+# #essfmc: ds_15_sm_0.2, ds_15_sm_0.4, ds_15_sm_0.3
+# 
+#  bsRes <- acc_total %>%
+#      mutate(across(where(is.numeric), ~ replace_na(.,0)))
+#  
+#  bsRes_all <- bsRes %>%
+#    dplyr::select(bgc, balance, aspat_p_overall, aspat_p_meanacc,
+#                  spat_p_overall, spat_p_meanacc, slice) %>%
+#    distinct() %>%
+#    group_by(balance, bgc)
+#    
+#   bsRes_all_mean <- bsRes_all %>%
+#     summarise(across(.cols = c(aspat_p_overall, aspat_p_meanacc, spat_p_overall,   spat_p_meanacc), list(mean = mean, sd = sd), n = n())) %>%
+#     filter(!is.na(balance))
+#   
+#   
+# bgcoi = "ESSFmcw"
+# bals <- c("ds_20_sm_0.9", "ds_15_sm_0.8")
+# 
+# bgc_dat <- bsRes_all_mean %>%
+#   filter(bgc == bgcoi ) %>%
+#   filter(balance %in% bals)
+# 
+
+
+```
+
+
+
+
+

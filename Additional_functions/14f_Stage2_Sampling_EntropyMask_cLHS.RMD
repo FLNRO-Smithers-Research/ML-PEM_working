@@ -1,0 +1,472 @@
+---
+title: "PEM -- Stage 2f Sampling"
+subtitle: "Masking with Entropy Layer, cLHS of co-variates"
+author: "C. Chisholm"
+date: "last update: `r Sys.Date()` <br> initiated: July 16, 2019"
+output:
+  rmdformats::readthedown:
+    self_contained: false
+    thumbnails: false
+    lightbox: false
+    gallery: false
+code_folding: hide
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=FALSE, warning = FALSE, message = FALSE, results = 'hide' )
+```
+
+<div style="background-color: #ffedcc; border: 2px, solid, #cc0000; border-radius:5px; padding: 10px" >
+# _Update_
+  + July 17: Added 70m buffering to transect avoidance.  
+</div>
+
+
+
+
+# Background
+The following scripting is based on the  outcomes of the PEM tele-conference meeting of July 8, 2019.  As I was not able to attend that meeting I met with Che Elkin to clarify the process moving forward.  The process presented here borrows heavily from [past scripting](./14e_Stage2_FullRun.html) but is far less reliant on the _Entropy_ layer generated in the model.
+
+This script is a hybrid system that uses the _Entropy_ layer to masks-out/removes areas of high certainty (low _Entropy_ values) from the _sampling-pool_, _conditional latin hypercube sampling_ is then run on the remaining area utilizing the predictor layers discussed, and finally the _paired-transect generation_ process is used to produce the survey transects based on the diversity of the _PEM v1_ discrete site series raster. 
+
+## Process overview
+
+  1. The area of interest (AOI) is based on
+      + spatial polygon sampling area: 250m buffer of roads, with additional expert driven areas. For example, areas of ecological importance that are not covered by road features (e.g. alpine or steep slope areas).
+      + Entropy layer with values $> 0.40$ This cutoff is specific to the the ALRF's model run Entropy layer histogram -- to remove the left side tail (areas where there is high certainty).
+  2. conditioned latin hypercube sampling (cLHS) of the data using the AOI mask above and the following predictor layers at the 10 and 25m<sup>2</sup> pixel grain size^[This list of layers is different than the previous _Stage 1_ cLHS sampling as it is missing: slope, aspect, topographic position index (TPI) and general curvature; while adding: ruggedness.] ^[The 2.5 and 5m<sup>2</sup> rasters are not included in this cLHS to improve sampling efficiency/time.].
+      + topographic roughness
+      + MRVBF _meeting's notes suggest scaling of this to include a broader geographic range (more applicable to boundary).  For this script, I will the 10m and 25m raster datasets^[25m raster layer is run through `disaggregate()`, `crop()`, `aggregate()` process to allow it to be used with the 10m] as the 25m will provide a broader landscape interpretation._
+      + Elevation
+      + Topographic wetness index (TWI)
+      + Diurnal anisotropic heating
+      + _X_ binned to the nearest 250m.  _This is in addition to the layers above.  The intent here is to geographically separated the cLHS points such that the transects do not overlap._
+      + _Y_ binned to the nearest 250m. _As per <tt>X</tt> above_.
+  3. Run the resulting sample points through a the _paired-transect generation process_.
+
+
+-------------------------
+
+# Parameterization
+## script Libraries
+_see code_
+```{r, echo= TRUE, results='hide'}
+## Libaries -------------------------------------------------
+    ls <- c("tidyverse", "knitr")            # Data Management and Manipulation
+    ls <- append(ls, c("RColorBrewer", "viridis"))             # Color Palettes
+    ls <- append(ls, c("caret", "randomForest"))             # Modelling packages
+    ls <- append(ls, c("clhs", "RStoolbox"))                 # needed for cLHS
+    ls <- append(ls, c("parallel","doParallel"))             # Parallel processing
+    ls <- append(ls, c("rgdal", "sf", "raster", "rasterVis", "tmap"))             # Spatial Data
+
+    new.packages <- ls[!(ls %in% installed.packages()[,"Package"])]
+    if(length(new.packages)) install.packages(new.packages)
+    lapply(ls, library, character.only = TRUE)  # load the required packages
+    rm(ls, new.packages)
+```
+
+## Parameters
+Includes location of model data and _flags_ for how this script will run.
+```{r parameters}
+model.folder.out <- "./_ALRF_model/Caret-All-Raster-All-Training"
+# With further development these could be passed as variables.
+
+SamplingRun  <- FALSE  ## First Run is complete -- but I want to re-run the sampling
+NumSamples  <- 20 ## Note this will be 2x following generation of paired transects
+
+RoadCrossingAllowed <- FALSE ## Only works in SamplingRun is set to TRUE
+RoadBuffer <- 7.5
+
+set.seed(9606338)  ## keeps the runs below the same -- for a random run that is different each time comment this out.
+
+EntropyCutoff <- 0.4 ## Used to remove the tails from the Entropy layer -- near end of Raster Processing.
+```
+
+
+
+## Input data
+_Code is here -- see button.  Additional description is provided below._
+```{r input-files}
+### Load data
+
+## Rasters
+### For cLHS
+  cov10 <- list.files("E:/tmpGIS/pemR_Stage2/10", pattern = "*.tif", full.names = TRUE)
+  cov10 <- stack(cov10)
+
+  cov25 <- list.files("E:/tmpGIS/pemR_Stage2/25", pattern = "*.tif", full.names = TRUE)
+  cov25 <- stack(cov25)
+
+
+
+  siteSeries <- raster(paste(model.folder.out, "SiteSeries.tif", sep = "/"))  ## Should not need to change -- as this is a standard name from 12_ModelRun
+  entropy    <- raster(paste(model.folder.out, "Entropy_10m.tif", sep="/")) ## loaded in the 'Prepare entropy layer'
+
+## Projection / CRS
+  PROJ <- as.character(crs(siteSeries))
+
+## Vector
+  Roads    <- st_read("E:/GIS/ALRF/Projects/2019/PEM/PEM_Stage2_SamplingArea.gpkg", layer = "Roads")
+  Roads    <- st_buffer(Roads, RoadBuffer)
+  Waterbodies <- st_read("E:/GIS/ALRF/Projects/2019/PEM/PEM_Stage2_SamplingArea.gpkg", layer = "ClippedWaterBodies")
+  AOI <- st_read("E:/GIS/ALRF/_MostRequested_/ALRF Boundary/Boundary_NoPark/Boundary_NoPark.shp")
+  SampArea <- st_read("E:/GIS/ALRF/Projects/2019/PEM/PEM_Stage2_SamplingArea.gpkg", layer = "SamplingArea")
+  ## Simplify the sample area polygon -- removes attributes and merges to single polygon
+  SampArea <- SampArea %>%  mutate(name = "Sample area") %>% dplyr::select(name, geom)
+  SampArea <- SampArea %>%  group_by(name) %>% summarise()
+
+  
+  
+  
+  roadsSimple <- st_read("E:/GIS/ALRF/Projects/2019/PEM/ALRF_Roads_Simple_4wd_ATV", layer = "Roads")
+```
+
+
+
+### cLHS data
+Two rasters stacks are created one for each raster resolution (10m and 25m)
+
+### Model output rasters
+
+# Data preparation
+## Raster Processing
+The 25m raster is converted to a 10m resolution raster using the aggregate and disaggregate functions (i.e. it is not possible to convert directly to a 10m as the (dis)aggregate functions only take integers for the conversion factors).  These different raster sets are combined into a single variable/ raster stack including raster layers that indicate the X and Y coordinate bins used to force some geographic spatial distribution.
+```{r raster-wrangling}
+if(SamplingRun == TRUE){
+    # Determine minimum extent and crop layers to it
+      e <- intersect(extent(cov10), extent(cov25))
+        # Constraine the extent
+          e@xmin <- ceiling(e@xmin/10)*10 ; e@xmax <- floor(e@xmax/10)*10
+          e@ymin <- ceiling(e@ymin/10)*10 ; e@ymax <- floor(e@ymax/10)*10
+    
+    
+    
+    # Make the 25m fit the 10m
+      cov25 <- disaggregate(cov25, 5)
+    
+    # Layers are cropped to common extent -- this is done here so that the
+      # cov25, currently at 5m resolution is given the correct extent
+      cov10 <- crop(cov10, e)
+      cov25 <- crop(cov25, e)
+    
+    # 25m is pushed back to 10m raster
+      cov25 <- aggregate(cov25, 2, fun=mean)
+    
+    # combine the 2 stacks
+      cov <- stack(cov10, cov25)
+    
+    # Mask to Sample Area
+      cov <- mask(cov, SampArea)
+    
+    
+    # Create X, Y coordinate bins -- 250m bins
+      XY <- cov$dtm_10m
+      XY <- rasterToPoints(XY) %>%
+        as_tibble() %>%
+        mutate(Xbin = floor(x/250)*250,
+               Ybin = floor(y/250)*250)
+    
+      ##X bins Raster
+      X <- XY %>% as_tibble() %>%
+        dplyr::select(x, y, Xbin)
+      X <- rasterFromXYZ(X, c(10, 10), crs = crs(cov))
+    
+      ## Y bins Raster
+      Y <- XY %>% as_tibble() %>%
+        dplyr::select(x, y, Ybin)
+      Y <- rasterFromXYZ(Y, c(10, 10), crs = crs(cov))
+    
+      XY <- stack(X, Y)
+    
+    
+    ## Add the XY data to the stack
+      XY <- crop(XY, cov)
+      cov <- crop(cov, XY)
+    
+      cov <- stack(cov, XY)
+    
+    
+    ## Examine Entropy Layer -- create Mask based on Entropy layer
+      EntropyX <- entropy
+      EntropyX[EntropyX >  EntropyCutoff] <- 1
+      EntropyX[EntropyX <= EntropyCutoff] <- NA
+      EntropyX <- crop(EntropyX ,cov)
+    
+      cov <- mask(cov,EntropyX )
+    
+    
+    # remove unneeded variables
+      rm(list = c("cov10", "cov25", "e", "X", "Y", "XY", "EntropyX"))
+}
+```
+
+## PCA ??
+_not currently implemented_
+
+As the layers are likely highly correlated consideration should be given to the production of layers with low covariation (i.e. a Principle Component Analysis).  As I understand it from discussions with C. Elkin and scripts by Brandon Hueng cLHS is ideally completed on data with low co-variation.
+
+
+# cLHS
+As set in _Parameters_ above a total of `r NumSamples` cLHS points will be generated.  The shapefiles are exported to `./cLHS_1` .
+
+```{r cLHS}
+if(SamplingRun == TRUE) {
+ti <- Sys.time()
+print(paste("cLHS stated at: ", ti))
+    dir.create("cLHS_1")
+
+    cLHS_samples <- clhs(cov,
+                         size = NumSamples,
+                         iter = 10000, #10 for testing ... 10000 for run
+                         progress = FALSE,
+                         simple   = FALSE)
+
+    cLHS_points <- st_as_sf(cLHS_samples$sampled_data)
+
+    st_write(cLHS_points, "./cLHS_1/cLHS_pts.gpkg", "points", delete_dsn = TRUE)
+
+st <- Sys.time()
+print(paste("cLHS completed at: ", st))
+print(st - ti)
+
+} else {
+  cLHS_points <- st_read("./cLHS_1/cLHS_pts.gpkg")
+}
+```
+
+
+points are saved to:
+```{r, results='show'}
+print(list.files("./cLHS_1", full.names = TRUE))
+```
+
+The points above are used to generated the various transects.
+
+# Point Sampling
+
+## Functions
+_functions are loaded_
+```{r}
+## Load the functions
+source("./91_TransectGenFunctions.R")
+```
+
+
+Here functions are loaded for later use in the processing section of the script.  _Could consider developing these as a package_. For further details see:
+
+  + [01_TransectGeneration_concept](./01_TransectGeneration_concept.html)
+  + [14d_Stage2_FullRun](./14_Stage2d_FullRun.html)
+  + [84_PEM_PairingTransects](./84_PEM_PairingTransects.html)
+
+# Paired Transect Generation
+Scripting here runs through the points created using the cLHS above to generate 2 transects based on the highest diversity in the _PEM v1_ site series raster.  In addition, transects will:
+
+  1. Avoid all other cLHS points by 75m. This is done by buffering the cLHS points by 75m
+  2. Avoid roads where possible
+  3. Avoid other transects
+  4. Avoid water features
+
+
+
+
+## Transect pairs are generated
+```{r}
+if(SamplingRun == TRUE){
+ti <- Sys.time()
+print(paste("Transect Generation started at:", ti))
+    ## This will loop through the cLHS points
+
+    AvoidPts <- cLHS_points %>% mutate(id = row_number()) #%>% 
+      # group_by(name) %>% summarize()
+    # AvoidPts <- st_buffer(AvoidPts, 75) ## points to avoid -- will be used in loop
+
+
+    for(i in 1:nrow(cLHS_points)){
+      # i <- 1 ## for testing
+      print(paste("Looping thru:", i))
+    
+      ## Extract the 1st point
+      # point <- cLHS_points[i,] %>% dplyr::select(geometry)
+      point <- cLHS_points[i,] %>% dplyr::select()
+      point <- cbind(point, st_coordinates(point))
+      point$id <- i
+
+      tri <- Tri_build(i, point$X, point$Y)  ## create inital Triangle
+
+      triSet <- pMoonTransects(point, tri)   ## point to rotate around and the triangle
+
+    ## Avoidances -----------------------------
+      ## Water
+      triSet <- TX(triSet, Waterbodies) %>% filter(X == FALSE)  ## Avoid waterbodies
+
+      ## Other cLHS points
+      av <- AvoidPts %>% filter(id != i) %>% 
+        mutate(id = "name") %>% group_by(id) %>% 
+        summarize() ## this filter is so that it does not avoid itself
+      av <- st_buffer(av, 50)
+      triSet <- TX(triSet, av)    %>% filter(X == FALSE)
+
+      ## Other Transects
+      if(i > 1){ ## filter is only needed for transect previously generated. ...
+        tl <- TransectList %>% mutate(name = "name") %>% 
+          group_by(name) %>% summarise() ## simplifies multiple transects into single multiline
+        triSet <- TX(triSet, st_buffer(tl, 70)) # avoidance with a 70m buffer
+        triSet <- triSet %>% filter(X == FALSE)
+      }
+
+      ## Roads
+      triSet <- TX(triSet, Roads) ## adds attribute RoadX: as T or F
+        if(RoadCrossingAllowed == FALSE){ # if road crossing is not allowed remove rotations that do cross.
+          tmp <- triSet %>% filter(X == FALSE)
+          if(nrow(tmp) > 0){  # in the case where all the potential transects cross a road then there is no change and all the transects are considered.
+            triSet <- tmp
+          }
+        }
+
+    ## Best Transect -------------------------
+      triSet <- MoonDivQuery(siteSeries, triSet)
+      triBest <- triSet %>% filter(Shannon == max(Shannon))
+      triBest <- triBest[1,]  ## selects the 1st record it there are muliple returns
+
+    ##
+    ## The paired point and transect --------------------------------------------
+    ##
+
+      BackBearing <- triBest$Rot[1] + 180 + 30 ## bearing for the original to the new
+      point2 <- point %>% dplyr::select()  ## only want to send geometry
+      
+      point2 <- pairedPoint(point2, BackBearing, 100)
+      # point2 <- point2 %>% mutate(ID = i + .2,           ## to facilitate rbind below
+      #                             Entropy_10m  = as.numeric(NA),
+      #                             Class        = as.numeric(NA))
+      point2 <- cbind(point2, st_coordinates(point2))
+      point2$id <- i + .2
+
+      tri    <- Tri_build(point2$id, point2$X, point2$Y)
+      triSet <- pMoonTransects(point2, tri)
+
+    ## Avoidances ---------------------
+      ## Water
+      triSet <- TX(triSet, Waterbodies) %>% filter(X == FALSE)  ## Avoid waterbodies
+
+      ## Other cLHS points
+      # av <- AvoidPts %>% filter(name != i) ## this filter is so that it does not avoid itself
+      triSet <- TX(triSet, av)    %>% filter(X == FALSE)
+
+      ##Previous Transect Avoidance
+      triSet <- TX(triSet, st_buffer(triBest, 70)) %>% filter(X == FALSE)
+
+      ## Other Transects
+      if(i > 1){ ## filter is only needed for transect previously generated. ...
+        # tl <- TransectList %>% mutate(name = "name") %>% 
+        #   group_by(name) %>% summarise() ## simplifies multiple transects into single multiline
+        triSet <- TX(triSet, st_buffer(tl, 70)) # avoidance with a 70m buffer
+        triSet <- triSet %>% filter(X == FALSE)
+      }
+
+      ## Roads
+      triSet <- TX(triSet, Roads) ## adds attribute RoadX: as T or F
+        if(RoadCrossingAllowed == FALSE){ # if road crossing is not allowed remove rotations that do cross.
+          tmp <- triSet %>% filter(X == FALSE)
+          if(nrow(tmp) > 0){  # in the case where all the potential transects cross a road then there is no change and all the transects are considered.
+            triSet <- tmp
+          }
+        }
+
+    ## Best Transect -------------------
+      triSet <- MoonDivQuery(siteSeries, triSet) ## provides Shannon Diversity Index
+      triBest2 <- triSet %>% filter(Shannon == max(Shannon))
+      triBest2 <- triBest2[1,]  ## selects the 1st record it there are muliple returns
+      # triBest2$id <- i + 0.2
+
+    ## Combine the 2 samples
+      triBest <- rbind(triBest, triBest2)
+      
+      # hack -- to solve geom / geometry issue -- only an issue if stating with loading external cLHS points
+        point1 <- point %>% dplyr::select()
+        point1 <- pairedPoint(point1,0,0) 
+        point1 <- cbind(point1, st_coordinates(point1))
+        point1$id <- i
+      
+      # bind the points 
+      point <- rbind(point1, point2)
+
+      ## Save All the points and lines
+        # Save the points
+        if(i == 1){pointList <- point} else { pointList <- rbind(pointList, point)}
+        # Save the lines
+        if(i == 1){TransectList <- triBest} else { TransectList <- rbind(TransectList, triBest)}
+
+    }
+
+  ## Export Spatial Data
+  # create folder for spatial data exported
+  fname <- paste(model.folder.out, "TransectsCreated", sep = "/")
+  ifelse(!dir.exists(file.path(fname)),               #if folder does not exist
+         dir.create(file.path(fname)), FALSE)        #create it
+
+  
+  dsnName <- "Transects.gpkg"
+  # dsnName <- "Points.shp"
+  # write_csv(pointList, paste(fname, "Points.csv", sep = "/") )
+  # write_csv(TransectList, paste(fname, "Transects.csv", sep = "/") )
+  
+  st_write(pointList, dsn = paste(fname, dsnName, sep = "/"), layer = "Points", delete_dsn = TRUE)
+  st_write(TransectList, dsn = paste(fname, dsnName, sep = "/"), layer = "Transects")
+
+
+st <- Sys.time()
+print(paste("Transects Generated: ", st))
+# print(st - ti)
+} else {
+  # loads the saved data -- for reporting in next sections
+  fname <- paste(model.folder.out, "TransectsCreated", sep = "/")
+  dsnName <- "Transects.gpkg"
+
+  pointList    <- st_read(dsn = paste(fname, dsnName, sep = "/"), layer = "Points")
+  TransectList <- st_read(dsn = paste(fname, dsnName, sep = "/"), layer = "Transects")
+}
+```
+
+
+
+
+
+## Plot results
+The process in confirmed by the figure below -- showing the points and their corresponding transects. 
+```{r plotResults, results=TRUE}
+
+# Add legend names
+TransectList$name <- as.factor("Transects")
+pointList$name <- as.factor("POCs")
+
+
+my_pal <- rev(brewer.pal(100,"Blues")) ## Pallet for basemap
+
+## Plot map of Sampling Area
+
+
+
+map <- tm_shape(entropy) +
+    tm_raster(palette = my_pal, title = "Entropy", style = "cont" ) +
+  tm_shape(AOI) +
+    tm_fill(col="Licensee", palette = "red", alpha = 0, label = "ALRF Boundary", title = "") +
+    tm_borders(col = "red") +
+  tm_shape(SampArea) +
+    tm_polygons(col = "name", alpha = .3, palette = "orange", title = "") +
+  tm_shape(TransectList) +
+    tm_lines("name", palette = "purple", title.col = "") +
+  tm_shape(pointList)+
+    tm_dots(col = "name", size = .07, palette = "purple3", title= "") +
+  # tm_shape(b) +
+  #   tm_fill(col="name", alpha = .1,  palette = "red", title = ""  ) +
+  #   tm_borders(lty = "dashed") +
+  tm_scale_bar() +
+  tm_layout(legend.outside = TRUE, frame = FALSE)
+
+
+tmap_leaflet(map)
+
+```

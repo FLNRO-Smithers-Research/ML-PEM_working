@@ -1,0 +1,1198 @@
+---
+title: "Import of Stage 1 Field Transect data from Avenza PDF maps schema"
+subtitle: "by Will MacKenzie,  Kiri Daust, Gen Perkins and Matt Coghill"
+Methods author: "Will MacKenzie"
+date: "08/08/2019"
+output: html_document
+---
+
+```{r global_options, include=FALSE }
+require(knitr)
+
+```
+
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(raster)
+library(fasterize)
+library(sf)
+library(clhs)
+library(tools)
+library(stringr)
+library(lwgeom)
+library(dplyr)
+library(ranger)
+library(foreach)
+library(scales)
+library(stringr)
+
+# if Velox is not installed previously
+#library(devtools)
+#install_github("hunzikp/velox")
+
+
+```
+
+## Introduction
+
+
+Note this script has been superseeded by AOI specific scripts, due to variability in the dat acollection methods / schema across time and study areas
+
+
+
+
+
+
+This script contains functionality for the import data collected by Avenza following field collection of triangular paired transects (Stage 1 and 2 Study Design). This script performs several steps:
+
+1. Import transects from shapefiles or geopackage exported from Avenza PDF maps.
+
+2. Converts data to vector triangles (using point to point or tracklog). Specifically this converts the points to lines (or track log to lines), add the field sample data as attributes to the line. Training points are then sampled from the line (ie at specific distances 5m, 30m, 50m ). 
+
+3. Alternatively the line segements are converted to a raster (2.5m), from which training points can be sampled. A learning curve is first used on all raw raster cell values to estimate the number of points required to be sampled. Note this is time consuming and is only required to be run once (?) for exploration. This is currently being investigated and is in development
+
+A variety of methods currently explored include: 
+- all raw points (sampled at 2.5m scale)
+- balanced training point*
+
+Balanced training points is achieved using clhs sampling 
+
+- clhs - For each classified vegetation grouping, determine clhc space then sample number of points within this space across all transects (per mapunit). The number of points is currenly sampled proportionally to the sampled sites. 
+
+- this requires to build a machine learning model 
+
+- build quick ranger model to test which covariates to use 
+
+- Add chlc to the raster layer (at 4a).
+- Assume the subset of covariates.  
+- Smote (the low numers of samples) (explore the methods) 
+
+Generate a number of training pt options
+	- Original training set size
+	- Minimum no needed to be in cross validation 
+	- Totally balanced points 
+	- High upsample (50 to 500). 
+
+
+
+
+4. Training points are then exported to the common training point folder. Script 04b_TrainingPt_Consolidate.Rmd can then be run to add attribute data to the training point set in preparation for modelling.  
+
+
+Questions to be discused: 
+- which variables to use for Clhc? Run random forest and identify the top variables? 
+- How many points do you sample? Proportional to representation? Percentage? no of samples? 
+
+This script requires : 
+- transect layout saved in geopackage format 
+- raster 2.5m 
+- raw data from field
+
+
+
+
+## 1. Set up folder structure
+
+```{r set up folder structure }
+
+AOI <- "BoundaryTSA"
+
+res <- 5
+
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+
+##stage 1
+trans_layout <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "transect_layout")
+trans_data <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "transect_data") 
+output_pnts_dir <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "training_pts")
+
+#stage2 
+#trans_layout <- file.path(AOI_dir, "2_sample_design", "stage2_StudyDesign", "01_entropy", "transect_layout")
+#trans_data <- file.path(AOI_dir, "2_sample_design", "stage2_StudyDesign", "01_entropy", "transect_data", "compiled") 
+#output_pnts_dir <- file.path(AOI_dir, "2_sample_design", "stage2_StudyDesign", "training_pts")
+
+
+
+
+# all stages
+output_cleaned_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData", "clean")
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+res_folder <- paste0(res, "m")
+
+if(!dir.exists(output_pnts_dir)) dir.create(output_pnts_dir, recursive = TRUE)
+```
+
+Select the names of columns for the AOI to extract primary and secondary calls 
+
+```{r set up the columns of interset for Site series calls }
+
+if(AOI == "Deception"){
+  poc_column <- "desc"
+  mapunit1_column <- "X2MapUnit"
+  mapunit2_column <- "X4MapUnit2"
+} else if(AOI %in% c("BoundaryTSA", "EagleHills")){
+  poc_column <- "x6pointtype"
+  mapunit1_column <- "x2mapunit1"
+  mapunit2_column <- "x4mapunit2"
+  observer_column <- "x1observer"
+} 
+
+#Boundary - Ecora Dataset 
+
+if(AOI == "BoundaryTSA"){
+  poc_column <- "f03_pt_type"
+  mapunit1_column <- "f04_mapunit1"
+  mapunit2_column <- "f06_mapunit2"
+  observer_column = "f02_observer"
+}
+
+
+
+
+```
+
+
+Setup functions 
+
+1. extend_lines function will extend lines in order for one line to fully intersect another line. This is only used when the track log is selected for sampling. It is contained within the "process_track".
+
+2. process_track function will separate the tracklog based on the given point data. Some refinement required (see [issue](https://github.com/bcgov-c/BEC_DevExchange_Work/issues/21).
+
+
+```{r Functions}
+
+source(here::here('_functions', 'extend_lines.R'))
+source(here::here('_functions', 'make_lines.R'))
+source(here::here('_functions', 'transect_sample.R'))
+source(here::here('_functions', 'multiline_to_line.R'))
+
+```
+
+
+## 1) Import and clean Avenza field transect data
+
+1. Import transects from shape files or geopackages exported from Avenza PDF maps. The shape files contain all data collected under the schema and so generally contain all transects collected to date on a single tablet. Need to separate using the original study design transect triangles.
+
+
+```{r import base files to run analysis, tidy = TRUE, warning=FALSE}
+
+## inport base raster of resolution required 
+raster_template <- raster(list.files(file.path(cov_dir, res_folder ,"final"), pattern = ".tif", full.names = TRUE)[1])
+
+## import transect layout data provided for sampling (Stage1 Study Design Transect - output)  
+
+#trans <- list.files(trans_layout, pattern = ".gpkg$|.shp$", full.names = TRUE, recursive = TRUE)  
+trans <- list.files(trans_layout, pattern = ".gpkg$", full.names = TRUE, recursive = TRUE)
+
+transect_layout <- foreach(x = trans, .combine = rbind) %do% {
+  clhs_layers <- st_layers(x)
+  lines <- which(clhs_layers[["geomtype"]] %in% c("Line String", "Multi Line String"))
+  if(length(lines)) {
+    transects <- foreach(y = clhs_layers$name[lines], .combine = rbind) %do% {
+      transect <- st_read(x, y, quiet = TRUE) %>% 
+        rename_all(recode, geom = "geometry") %>% 
+        rename_all(.funs = tolower) %>%
+        dplyr::select(id) %>% 
+        mutate(id = as.character(id)) %>% 
+        st_transform(3005)
+    }
+  } 
+} #%>% dplyr::rename(ID = id)
+
+transect_layout_buf <- st_buffer(transect_layout, 10)
+ 
+#st_write(transect_layout, file.path(output_pnts_dir, paste0("trans_layout_", AOI,".gpkg")),delete_layer = TRUE)
+
+```
+
+
+2. Connect the placemarks waypoints into a traverse using the running number name assigned by PDF maps
+
+The following chunk creates some basic folders and loads in data that will be used across all sampling types (a raster template and the original CLHS transects).
+
+## Generate transect data from track log. 
+Using the tracklog, a transect is generated using the tracklog along with point data to segment the line into site series calls. This includes extrapolating the line between points and the start point. Some tweaks required as self intersecting loops are currently allocated to a single site series. 
+
+```{r prepare raw data (unzip data and split into points and lines)}
+
+# read in the transect_data : unzip the data and store in transect_data folder. 
+
+# if(length(list.files(trans_data, pattern = "\\.zip"))) {
+#   zip_files <- as.list(list.files(trans_data, pattern = ".zip", full.names = TRUE, recursive = TRUE))
+#   for(i in 1:length(zip_files)){
+#     zip_base <- basename(file_path_sans_ext(zip_files[[i]]))
+#     zipped_names <- grep(".jpg$|/$", unzip(file.path(zip_files[i]), list = TRUE)$Name, 
+#                          value = TRUE, invert = TRUE)
+#     unzipped_names <- sub(paste0(zip_base, "_"), "", list.files(file.path(trans_data)))
+#     to_extract <- zipped_names[!zipped_names %in% unzipped_names]
+#     
+#     if(length(to_extract)) {
+#       unzip(file.path(zip_files[i]), zipped_names, exdir = file.path(trans_data))
+#       
+#       # Deal with files that were extracted to subfolders
+#       if(any(dirname(zipped_names) != ".")) {
+#         for(j in unique(dirname(zipped_names))) {
+#           subfiles <- list.files(file.path(trans_data, j), full.names = TRUE)
+#           file.rename(
+#             subfiles, 
+#             file.path(trans_data, paste0(j, "_", basename(subfiles)))
+#           )
+#         }
+#       } else {
+#         extracted_files <- list.files(file.path(trans_data), full.names = TRUE, recursive = TRUE)
+#         extracted_files <- extracted_files[basename(extracted_files) %in% basename(zipped_names)]
+#         file.rename(
+#           extracted_files, 
+#           file.path(
+#             dirname(extracted_files), 
+#             paste0(zip_base, "_", basename(extracted_files))
+#           )
+#         )
+#       }
+#     }
+#   }
+# }
+  
+# Look at the raw data files and find which are points and which are lines. note this is only working with shapefiles
+
+all_layers <- st_layers(trans_data)
+#all_layers <- list.files(trans_data)
+
+tracks_index <- which(all_layers$geomtype %in% c("Line String", "3D Line String"))
+points_index <- which(all_layers$geomtype %in% c("Point", "3D Point"))
+
+tracks <- list.files(trans_data, pattern = ".gpkg$|.shp$", full.names = TRUE)[tracks_index]
+points <- list.files(trans_data, pattern = ".gpkg$|.shp$", full.names = TRUE)[points_index]
+
+##stage 1
+#points <- points[c(1,3,5)]
+
+points <- points[-c(14,21,32,33,36,38)]
+
+# for ecora 2020 data - all data supplied in two geopackages so need to split these out first 
+
+# for consolidated data sets in a single geopackage - unzip to multiple geopackges 
+indiv_files = file.path(trans_data,"single_gpkgs")
+
+if(!dir.exists(indiv_files)) dir.create(indiv_files, recursive = TRUE)
+
+for (p in points){
+   #p = points[2]
+   points_index = st_layers(p)
+   points_no = which(points_index$geomtype %in%  c("Point", "3D Point"))
+   points_name = grep("_points$", points_index$name, perl = TRUE, value = TRUE)
+   
+   for (r in points_name){
+       #r = points_name[1]
+       points_read <- st_read(p, quiet = TRUE, layer = r)%>%
+         st_transform(3005) %>%
+         st_zm() %>%
+         mutate(geometry = Shape) %>%
+         dplyr::select(-Shape) %>%
+         st_write(file.path(indiv_files,paste0(r,".gpkg")))
+   }
+   
+}
+
+
+points <- list.files(indiv_files, pattern = ".gpkg$", full.names = TRUE)#[points_index]
+
+
+
+```
+
+
+2. Connect the placemarks waypoints into a traverse using the running number name assigned by PDF maps
+
+
+The following chunk creates some basic folders and loads in data that will be used across all sampling types (a raster template and the original CLHS transects).
+
+## Generate transect data from track log. 
+Using the tracklog, a transect is generated using the tracklog along with point data to segment the line into site series calls. This includes extrapolating the line between points and the start point. Some tweaks required as self intersecting loops are currently allocated to a single site series. 
+
+
+## Generate transect from point to point 
+
+All point data is read in, compiled and for each triangle id the poinst are converted to lines using the #**make_line** function. A key is then generate for unique Sites series or unique site series primary and seconday calls to match numeric raster value with the site series. Each vector triangle is converted to a raster and combined into a single .tif file. 
+
+
+```{r import transect point data, tidy = TRUE, warning=FALSE}
+
+
+
+# consolidate points into single file and match to transect
+#points = points[2]
+
+all_points <- foreach(x = points, .combine = rbind) %do% {
+  #x <- points[5]
+ print(x)
+     # when all the points are consolidated into a single geopackage 
+     points_read <- st_read(x, quiet = TRUE) %>%
+     st_transform(3005) %>% 
+     st_zm() %>% 
+     rename_all(.funs = tolower) %>%
+     mutate(mapunit1 = UQ(rlang::sym(mapunit1_column)),
+            mapunit2 = UQ(rlang::sym(mapunit2_column)),
+            point_type  = UQ(rlang::sym(poc_column)),
+            observer =  UQ(rlang::sym(observer_column))) %>%
+     st_join(., transect_layout_buf, join = st_intersects) %>%
+     rename_all(.funs = tolower) %>%
+     #dplyr::select( mapunit1, mapunit2, point_type, id, observer)%>%
+    #   distinct_all()
+     dplyr::select(name, mapunit1, mapunit2, point_type, id, observer) #%>%
+    # mutate(order_id = gsub("Placemark ", "", name),
+    #        transect_id = id) %>%
+    # group_by(transect_id) %>%
+    # arrange(as.numeric(order_id), by_group = TRUE) %>%
+    # ungroup() 
+} %>% 
+  distinct(., .keep_all = TRUE) #%>%
+ # arrange(transect_id)
+
+# export non_standard points: 
+all_points_extras <- all_points %>%
+  filter(is.na(id))
+
+st_write(all_points_extras, file.path(output_pnts_dir, "s1_extra_points_2019_raw.gpkg"), delete_layer = TRUE)
+
+# export standard transect
+all_points <- all_points %>% filter(!is.na(id))
+
+st_write(all_points, file.path(output_pnts_dir, "s1_transect_points_raw_2019.gpkg"), delete_layer = TRUE)
+
+```
+
+consolidate tracks if using 
+
+```{r}
+# consolidate tracklog 
+
+all_tracks <- foreach(x = tracks, .combine = rbind) %do% {
+  tracks_read <- st_read(x, quiet = TRUE) %>% 
+    st_transform(3005) %>% 
+    st_zm() %>% 
+    mutate(mapunit1 = !!sym(mapunit1_column), 
+           mapunit2 = !!sym(mapunit2_column),
+           point_type = !!sym(poc_column), 
+           file = x, 
+           filter = unlist(lapply(st_geometry(.), function(x) length(x)))) %>%
+    dplyr::filter(filter > 2) %>% 
+    st_join(transect_layout_buf) %>%
+    rename_all(.funs = tolower) %>%
+    dplyr::select(name, desc,  mapunit1, mapunit2, point_type, id, file) # file argument required for make_lines function
+} %>%
+  distinct(., .keep_all = TRUE) %>%
+  filter(!is.na(id))
+
+st_write(all_tracks, file.path(output_pnts_dir, "s1_transect_lines_raw.gpkg"), delete_layer = TRUE)
+``` 
+
+
+```{r}
+# covert to lines 
+processed_transects <- make_lines(GPSPoints = all_points, 
+                                  #GPSTracks = all_tracks,
+                                  Transects = transect_layout, 
+                                  method = "pts2lines", #"tracklog",  
+                                  tBuffer = 20, PROJ = 3005) %>%
+  mutate(mapunit1 = (trimws(mapunit1)),
+         mapunit2 = (trimws(mapunit2))) %>%
+  mutate(mapunit12 = paste0(mapunit1,"_", mapunit2)) %>%
+  mutate(mapunit12 = gsub("_NA","", mapunit12)) %>%
+  mutate(mapunit12 = gsub("_$","", mapunit12))
+  dplyr::select(-TID, ID)
+
+st_write(processed_transects,  file.path(output_pnts_dir, "proc_s1_transects_2019.shp"), 
+         delete_layer = TRUE)
+
+#processed_transects <- st_read(file.path(output_pnts_dir, "proc_s1_transects.shp"))
+
+# # get list of unique points sampled and lat_longs for second round of sampling 
+# pts_samples <- processed_transects %>%
+#   st_drop_geometry() %>%
+#   dplyr::select(id_1) %>%
+#   distinct()
+# 
+# files.oi <- c("IDFdm1_allPointPairs_2019-09-11.shp", "MSdm1_allPointPairs_2019-09-11.shp")
+# layout_xy <- read_sf(file.path(trans_layout, files.oi[1])) %>%
+#   filter(ID %in% pts_samples$id_1)
+# 
+# layout_xy2 <- read_sf(file.path(trans_layout, files.oi[2])) %>%
+#   filter(ID %in% pts_samples$id_1)
+#   
+# prev_sampledxy <- bind_rows(layout_xy, layout_xy2) %>% 
+#   dplyr::select(ID, geometry) %>%
+#   filter(ID %in% grep("LHS$", prev_sampledxy$ID, value = T))
+# 
+# write_sf(prev_sampledxy, file.path(trans_data, "previous_sampled_XY.shp"))
+
+
+```
+
+# Convert the point data to a raster and create a key to identify mapunit no with mapunit 
+ 
+```{r convert data to raster}
+# convert the vector data to raster for sampling. Build key which retains the primary and secondary call 
+# for later use in point sample creation 
+
+raster_key <- function(lines, mapunit12) { 
+  map_key <- lines %>% 
+    dplyr::select(!!sym(mapunit12)) %>%
+    st_drop_geometry() %>%
+    distinct() %>%
+    mutate(mapunit_no = seq(1:nrow(.)))
+} 
+   
+map_key <- raster_key(processed_transects, "mapunit12")
+
+lBuff <- processed_transects %>% 
+    dplyr::group_by(mapunit12) %>%
+    dplyr::summarise() %>%
+    sf::st_buffer(., dist = 2.5, endCapStyle = "FLAT", joinStyle = "MITRE") %>%
+    sf::st_cast(.,"MULTIPOLYGON") %>%
+    dplyr::mutate(mapunit12 = as.factor(mapunit12)) %>%
+    dplyr::left_join(., map_key)
+
+# note need to have a 2.5 m template raster or generating rasters is incomplete 
+
+rastAll <- fasterize(lBuff, raster_template, field = "mapunit_no")
+
+raster_points_xy <- as.data.frame(rasterToPoints(rastAll)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 3005) %>%
+  merge(map_key, by.x = names(rastAll), by.y = "mapunit_no") %>% 
+  st_join(st_buffer(transect_layout_buf, 10)) %>% 
+  cbind(st_coordinates(.)) %>% 
+  distinct(.keep_all = TRUE) %>% 
+  rename_all(.funs = tolower) %>%
+  separate(mapunit12, "_(?=[^_]*$)",
+           into = c("mapunit1", "mapunit2"), 
+           remove = TRUE) %>% 
+  dplyr::select(mapunit1, mapunit2, x, y, id)
+
+# tidy names 
+raster_points_xy <- raster_points_xy %>%
+  st_transform(3005) %>%
+  rename_all(.funs = tolower) %>%
+  dplyr::select_if(names(.) %in% c("x", "y", "mapunit1", "mapunit2", "id")) %>%
+  #distinct() %>%
+  mutate(mapunit2 = gsub("_", "/", mapunit2), 
+         mapunit1 = gsub("_", "/", mapunit1)) %>%
+  left_join(map.key, by = c("mapunit1" = "FieldCall")) %>%
+  dplyr::select(x, y, MapUnit, mapunit2, id) %>%          
+  dplyr::rename(mapunit1 = MapUnit) %>%
+  left_join(map.key, by = c("mapunit2" = "FieldCall")) %>%
+  dplyr::select(x, y, mapunit1, MapUnit, id) %>% 
+  dplyr::rename(mapunit2 = MapUnit) %>%
+  mutate(mapunit2 = ifelse(mapunit1 == mapunit2, NA, mapunit2)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 3005) #%>%
+  #drop_na(mapunit1)
+
+# points are written out to training points folder, then checking and added to clean (04b script) and attibutes attributed from covariate layers. 
+
+writeRaster(rastAll, file.path(output_pnts_dir , "proc_s1_trans_raster_2019.tif"), overwrite = TRUE)
+
+st_write(raster_points_xy, file.path(output_pnts_dir, "transect1_all_pts_2019.shp"), delete_layer = TRUE)
+
+#st_write(raster_points_xy, file.path(output_cleaned_dir, "transect1_all_pts_2019.shp"), delete_layer = TRUE)
+
+```
+ 
+
+The units associated with transect raster are the field calls. 
+
+
+## Part 2: Point sampling from transect data. 
+
+
+We currently have a number of methods to sample the transect data (either using vector or raster data). 
+These include using vector data
+- Vector: [5m interval sampling](http://www.forestecosystems.ca/PEMv2/#modelling)
+- Vector: 30 m interval sampling 
+
+# Option 1: generate points based on vector data
+This will use the function **transect_sample** to extract points from a line at 5 m intervals 
+
+```{r extract points based on 5m distance}
+
+for(i in c(5, 30, 50 )) {
+  #i = 30
+  SamplePtsXY <- transect_sample(processed_transects, mdist = i) %>% 
+    dplyr::select(-one_of("X", "Y", "ID")) %>% 
+    cbind(st_coordinates(.)) %>% 
+    distinct(.keep_all = TRUE) %>% 
+    rename_all(.funs = tolower) %>% 
+    dplyr::select(mapunit1, mapunit2, x, y, id)
+  
+   SamplePtsXY  <- SamplePtsXY %>%
+      st_transform(3005) %>%
+      rename_all(.funs = tolower) %>%
+      dplyr::select_if(names(.) %in% c("x", "y", "mapunit1", "mapunit2", "id")) %>%
+      st_drop_geometry() %>%
+      mutate(mapunit2 = gsub("_", "/", mapunit2), 
+             mapunit1 = gsub("_", "/", mapunit1)) %>%
+      left_join(map.key, by = c("mapunit1" = "FieldCall")) %>%
+      dplyr::select(x, y, MapUnit, mapunit2, id) %>%                         
+      dplyr::rename(mapunit1 = MapUnit) %>%
+      left_join(map.key, by = c("mapunit2" = "FieldCall")) %>%
+      dplyr::select(x, y, mapunit1, MapUnit, id) %>% 
+      dplyr::rename(mapunit2 = MapUnit) %>%
+      mutate(mapunit2 = ifelse(mapunit1 == mapunit2, NA, mapunit2)) %>% 
+      st_as_sf(coords = c("x", "y"), crs = 3005)
+
+  st_write(SamplePtsXY, file.path(output_cleaned_dir, paste0("transect1_2019_", i, "m_pts.shp")), delete_layer = TRUE)
+}
+
+```
+
+# Option 2: Generate points based on raster data
+
+There are multiple methods to test using points generated from rasters. 
+This includes 1) using all points (2.5m grid), 2) Use CLHS to select points based on environmental space per mapunit. This option requires selection of layers to be input to define environmental space (ie top model variables, subset of variables, recursive feature selection methods?). This requires to be tested. 
+
+
+```{r}
+
+res_folder = "5m"
+
+cov_dat <- stack(list.files(file.path(cov_dir, res_folder), pattern = ".tif$", 
+                            full.names = TRUE))
+
+lidar.layers <- c("p50", "p75", "p90","p95", "cov","std", "pconindex")
+
+# remove sat layers from forest models 
+sat.layers <- tolower(c( "B01", "B02", "B03", "B04", "B05","B06",
+                "B07", "B08", "B09", "B10", "B11", "B12", "B8A", 
+                "bi2", "sen_CTVI", "sen_DVI" , "sen_GEMI","sen_GNDVI",
+                "sen_MNDWI",  "sen_MSAVI", "sen_MSAVI2", "sen_NDVI",
+                "sen_NDWI" , "sen_NDWI2", "sen_NRVI", "sen_RVI", 
+                "sen_SAVI", "sen_SLAVI", "sen_SR", "sen_TTVI", 
+                "sen_TVI", "sen_WDVI",  "gndvi", "lai", "ndi45" ,
+                "ndpi","ndvi","ndvi_kmeans","ndvi_kmeans30", "ndwi2", 
+                "fcover", "rvi", "TCI"))
+
+near_zero_var <- c("cnetwork", "dem_preproc", "dem", "sinkroute")
+
+
+to.keep <- names(cov_dat)[!names(cov_dat) %in% c(lidar.layers, sat.layers,near_zero_var)]
+
+cov_dat <- raster::subset(cov_dat, to.keep)
+
+
+# add attributes to slow way - 
+
+rpts <- forest.trans.pts %>%
+    cbind(raster::extract(cov_dat, .)) 
+
+
+
+# testing 
+# convert to velox object 
+#cov_velox <- velox(cov_dat)
+
+# run into size issues - maybe need to tile? 
+#> cov_velox <- velox(cov_dat)
+#Error: cannot allocate vector of size 1.5 Gb
+#> 
+
+# try extracting points 
+#vx$extract_points(sp=spoint)
+
+```
+
+
+# Learning curve
+
+We will firstly run a learning curve on the full set of points to determine the number of points needed. 
+
+
+``` {r Learing Curve, echo=F}
+
+###########a caret test for training set size using a Learing Curve
+
+# WARNING: need to add a parrallel function : this takes some time!
+# 
+ library(caret)
+ 
+ set.seed(29510)
+ 
+ rpts_df <- rpts %>%
+   st_drop_geometry()
+ 
+  training  <-  rpts_df  %>%
+     drop_na(mapunit1) %>%
+     mutate(mapunit1 = as.factor(mapunit1))
+  
+  MU_count <- training %>% count(mapunit1) %>% filter( n > 50)
+  
+  training.df <- training %>% filter(mapunit1 %in%  MU_count$mapunit1)
+  training.df <-  droplevels(training.df)
+  train.df <- training.df[,-c(1:2,4:5)]
+  train.df <- train.df %>% drop_na(mapunit1)
+
+  
+  # run this when have lots of time.................
+  
+ lda_data <- learning_curve_dat (dat = train.df,
+                                proportion = (1:10)/10,
+                                outcome = "mapunit1",
+                                test_prop = 1/10, 
+                                method = "rf",
+                                metric = "Kappa", na.omit = TRUE,
+                                trControl = trainControl(classProbs = FALSE, method = "cv",
+                                                         verbose = TRUE)) 
+ #, summaryFunction = twoClassSummary))
+ ggplot(lda_data, aes(x = Training_Size, y = Accuracy, color = Data)) +
+    geom_smooth(method = loess, span = .8) +
+    theme_bw()
+  
+
+```
+
+
+Now we have the forested sites, attributed to the dem derived layers. We will run a ranger random forest model to determine the top variables for the forested sites. We will keep the bgc layer in the model but this wont be used in the clhs selection. 
+
+
+- Raster: Determine the environmental space for each site series, then generate a clhc sampling of this space 
+Q: which layers to use? how many points? 
+series and sample within  
+
+Two main questions remain - How to sample the points? How many points to sample? 
+
+
+
+
+```{r build caret CV randomforest}
+
+# rpts # raw points 
+
+# keep in bgc but dont include in top variatey # top 6 ish? 
+# this may be related 
+
+
+# remove highly correlated variables : 0.75 
+
+  
+  # one order of magnitude difference: 
+  
+  # > 500  - upsample to 500 
+  # > 5000 - down samples to 5000  
+
+# forest sub model (smote / )
+
+ rpts_df <- rpts %>%
+   st_drop_geometry() %>%
+   drop_na(mapunit1) %>%
+   mutate(mapunit1 = as.factor(mapunit1))
+  
+  MU_count <- rpts_df %>% count(mapunit1) %>% filter( n > 5)
+  
+  traindat <- rpts_df %>% 
+    filter(mapunit1 %in%  MU_count$mapunit1) %>%
+    dplyr::select(-c(x, y, id, mapunit2)) %>%
+    droplevels() %>%
+    drop_na()
+  
+  ranger_model <- ranger(mapunit1 ~ ., data = traindat , #do.trace = 10,
+                  num.trees = 501,   importance = "impurity", 
+                  splitrule = "extratrees", seed = 12345, 
+                  write.forest = TRUE, classification = TRUE) #strata=BGC, sampsize= c(500),
+
+
+  v <- as.data.frame(ranger_model$variable.importance)
+  DF <- v %>% tibble::rownames_to_column() %>% 
+    dplyr::rename(w = rowname, v = `ranger_model$variable.importance`)
+ 
+  topvars <- DF %>% arrange(desc(v))
+    
+  descrCor <- cor(traindat[,-1])
+  summary(descrCor[upper.tri(descrCor)])
+  highlyCorDescr <- findCorrelation(descrCor, cutoff = 0.75, verbose = TRUE, names = TRUE)
+  
+  col.to.rm <- c(highlyCorDescr)
+  
+  # remove correlated variables 
+  traindat_uc <- traindat %>%
+    dplyr::select(names(traindat)[!names(traindat) %in% col.to.rm])
+  
+  ranger_model_uc <- ranger(mapunit1 ~ ., data = traindat_uc , #do.trace = 10,
+                  num.trees = 501,   importance = "impurity", 
+                  splitrule = "extratrees", seed = 12345, 
+                  write.forest = TRUE, classification = TRUE) #strata=BGC, sampsize= c(500),
+
+    v_uc <- as.data.frame(ranger_model_uc$variable.importance)
+    DF_uc <- v_uc %>% tibble::rownames_to_column() %>% 
+    dplyr::rename(w = rowname, v = `ranger_model_uc$variable.importance`)
+ 
+   topvars_uc <- DF_uc %>% arrange(desc(v_uc))
+
+  
+  topvars
+  
+  
+ # remove the highly correlated variables:    
+ 
+var_plot = ggplot(DF, aes(x=reorder(w,v), y=v,fill=v))+ 
+  geom_bar(stat="identity", position="dodge")+ coord_flip() +
+  ylab("Variable Importance")+
+  xlab("")+
+  ggtitle("Covariate Importance Summary")+
+  guides(fill=F)+
+  scale_fill_gradient(low="red", high="blue")
+
+  var_plot_uc
+ 
+  ranger_model$variable.importance
+  ranger_model$prediction.error
+  ranger_model$confusion.matrix
+  
+
+# use top 20 covariates to sample clhs 
+  
+  topAcclayers <- paste0(topvars_uc [1:7,1],".tif")
+      topAcclayers <- rastList[rastList %in% topAcclayers]
+      rast <- stack()
+      for(i in 1:length( topAcclayers)){
+        temp <- raster(file.path(cov.dir, "10m",  topAcclayers[i]))
+        rast <- stack(rast,temp)
+      }
+      rast
+
+  
+  
+  
+  
+###caret version
+registerDoParallel(cores= detectCores()-1)
+
+
+
+### Method 1 for determining best layers to use in clhs sample :  Recursive feature sample
+#How many variables to use? 
+
+
+#set.seed(7)
+ library(parallel)
+ 
+ ######## rfe test results are slow and suspect...
+  subsetSizes <- c(2, 4, 6, 8, 12, 15, 20, 25, 30, 35, 40, 45,50, 55)
+  control <- rfeControl(functions=rfFuncs, method="cv", number=5)
+
+   # run the RFE algorithm
+  beginCluster(n = detectCores()-2)
+  results <- rfe(traindat[,-c(1:3)] , traindat[,"mapunit1"],  rfeControl=control, sizes =     subsetSizes, verboseIter = TRUE)
+  endCluster()
+  
+  cLHS_var <- results$optVariables
+  # summarize the results
+  print(results)
+#  # list the chosen features
+  predictors(results)
+#  # plot the results
+  plot(results, type=c("g", "o"))
+ 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+
+# fitControl <- trainControl(
+#   method = "repeatedcv", #repeated cross 
+#   number = 5,           #number of folds
+#   repeats = 3,          #number of replicates         
+#   returnResamp = "all", 
+#   sampling = "smote", ## balancing the training set expands the area predicted as non-forested appropriately
+#   #method = "none",          #Method for datasplitting - repeatedcv is k-fold cross validation 
+#   allowParallel = TRUE
+# )
+# mtry = c(3, 6, 9, 12, 14)
+# metric = "Kappa"     
+# #control <-trainControl(method = method, number = number, repeats = repeats)
+# tic()
+# 
+# fnf.m <- train(MapUnit ~ ., data=tptn[,-c(1:3)],  
+#                method="parRF", 
+#                trControl = fitControl, 
+#                do.trace = 10, 
+#                ntree=201, 
+#                mtry = mtry,
+#                na.action=na.omit, 
+#                importance = TRUE, 
+#                proximity=FALSE) #nodesize = 5,strata=BGC, sampsize= c(500),
+
+stopImplicitCluster()
+toc()
+
+
+# output the model accuracy to folder: tidy this up. 
+
+print(fnf.m)            #Overall metrics
+cm <- confusionMatrix(fnf.m)  #Confusion matrix for k-fold cross validation expressed as a percentage
+
+plot(fnf.m)
+final <- fnf.m$finalModel
+varImp(final)
+varImpPlot(final)
+
+imp <- as.data.frame(final[["importance"]])
+imp <- imp[order(imp$MeanDecreaseAccuracy, decreasing = T),] 
+imp_gini <- imp[order(imp$MeanDecreaseGini, decreasing = T),]
+
+descrCor <- cor(tptn[,-c(1:4)])
+summary(descrCor[upper.tri(descrCor)])
+highlyCorDescr <- findCorrelation(descrCor, cutoff = 0.9, verbose = FALSE, names = TRUE)
+
+save(fnf.m , file = file.path(output.dir,  "fnfmodel.Rdata"))
+
+```
+
+
+ ##Some exploratory graphics on variable separation
+ 
+```{r MapUnit - variable graphics}
+
+featurePlot(x = tptn[,-c(1:4)], 
+            y = tptn$MapUnit, 
+            plot = "box",
+            strip=strip.custom(par.strip.text=list(cex=.7)),
+            scales = list(x = list(relation="free"), 
+                          y = list(relation="free")))
+featurePlot(x = tptn[,-c(1:4)], 
+            y = tptn$MapUnit, 
+            plot = "density",
+            strip=strip.custom(par.strip.text=list(cex=.7)),
+            scales = list(x = list(relation="free"), 
+                          y = list(relation="free")))
+```
+
+
+
+Firstly we will extract all points possible on a 2.5m grid 
+
+
+
+
+## STILL NEED TO DEVELOP THIS PORTION TO SAMPLE TRAINING POINTS FROM ENTIRE RASTER 
+
+
+For subsetting points within the raster point data we can firstly determing the opimum number of points. We can then estimate the environmental space of each of the site series and sample within 
+the environmental space (using latin hypercube)
+
+- recursive feature sample
+- names
+- 
+
+
+### Method 1 for determining best layers to use in clhs sample :  Recursive feature sample
+HOw many variables to use? 
+
+```{r recursive feature selection}
+#set.seed(7)
+# library(parallel)
+# 
+# ######## rfe test results are slow and suspect...
+#  subsetSizes <- c(2, 4, 6, 8)
+#  control <- rfeControl(functions=rfFuncs, method="cv", number=5)
+# 
+#   # run the RFE algorithm
+#  beginCluster(n = detectCores()-2)
+#  results <- rfe(training.df[,-c(1:3)] , training.df [,"mapunit"],  rfeControl=control, sizes =  subsetSizes, verboseIter = TRUE)
+#  endCluster()
+#  
+#  cLHS_var <- results$optVariables
+#  # summarize the results
+#  print(results)
+#  # list the chosen features
+#  predictors(results)
+#  # plot the results
+#  plot(results, type=c("g", "o"))
+ 
+```
+
+
+### Method 2: Create random forest model from combined data to identify most important spatial variables
+
+```{r initial model for variables}
+# this currently stalls out on large number of catergories - shoudl be updated to carot
+
+# library(randomForest)
+# mod1 <- randomForest(mapunit ~ ., 
+#                      data= training.df[,-c(1,33)], 
+#                      nodesize = 5, 
+#                      do.trace = 10,                          
+#                      ntree=101, na.action=na.fail, importance=TRUE, proximity=FALSE)
+# 
+# imp <- as.data.frame(mod1[["importance"]])
+# imp <- imp[order(imp$MeanDecreaseAccuracy, decreasing = T),] ##extract importance may want to use Gini
+# varImpPlot(mod1, n.var = 15)
+
+```
+
+##Generate a cLHS sample from the full transect raster population of each map units using the most important spatial variables
+
+
+
+```{r transect CLHS}
+  # covars_to_keep <- as.vector(names(st_drop_geometry(raster_points)[, -c(1:2)]))
+  # 
+  # # Estimate the points to sample based on proportional representation of transect data
+  # clhs_count <- dplyr::count(raster_points, mapunit12) %>% 
+  #   mutate(prop = (n / sum(n)), sample = as.integer(scales::rescale(n, to = c(50, 100000))))
+  # 
+  # # Loop through each unit and select cLHS points using layers based on RF importance
+  # # Included tests with foreach package
+  # cl <- parallel::makeCluster(parallel::detectCores() - 1)
+  # doParallel::registerDoParallel(cl)
+  # clhs_pts <- foreach(ss = clhs_count$mapunit12, .combine = rbind, .packages = c("clhs", "sf")) %dopar% {
+  #   tSub <- raster_points[raster_points$mapunit12 == ss, ]
+  #   numTP <- clhs_count$sample[clhs_count$mapunit12 == ss]
+  #   if(nrow(tSub) <= numTP) {
+  #     tSub <- tSub
+  #   } else {
+  #     tSub <- as(tSub, "Spatial")
+  #     t1 <- clhs(tSub, size = numTP, iter = 1000, simple = FALSE, progress = TRUE)
+  #     tSub <- st_as_sf(t1$sampled_data)
+  #   }
+  # }
+  # parallel::stopCluster(cl)
+  
+  # clhs_pts <- raster_points[0, 0]
+  # #ss <- clhs_count$mapunit1[1]
+  # for(ss in clhs_count$mapunit12) {
+  #   tSub <- raster_points[raster_points$mapunit12 == ss, ]
+  #   numTP <- clhs_count$sample[clhs_count$mapunit12 == ss]
+  #   if(nrow(tSub) <= numTP) {
+  #     tSub <- tSub
+  #   } else {
+  #     tSub <- as(tSub, "Spatial")
+  #     t1 <- clhs(tSub, size = numTP, iter = 1000, simple = FALSE, progress = TRUE)
+  #     tSub <- st_as_sf(t1$sampled_data)
+  #   }
+  #   
+  #   clhs_pts <- rbind(clhs_pts, tSub)
+  # }
+  
+  # 
+  # st_write(clhs_pts, dsn = file.path(output_pnts_dir, "r_samplepts_clhs.gpkg"), layer='clhs_points', delete_layer = TRUE)
+  # 
+  # st_write(clhs_pts, dsn = file.path(output_pnts_dir, "r_samplepts_clhs.shp"))
+    
+```
+
+
+The training point population can behighly imbalanced between the mapunits at the site series level. Zonal Site series tend to dominat the training points sets when raw data set are used in the training set. A partial balancing of the raw training point between classes was applied to counteract this effect. Rebalancing is accomplished by log10 scaling the count of points per mapunit and then rescaling the log scale to a range of 200 - 2000 ### training points per mapunit.  
+
+Site series with raw training sets larger than the rescaled sample are subsampled using conditioned Latin Hypercube Sampling. Geographically restricted mapunits with fewer than required samples are upsampled using the SMOTE routine.
+
+These notes and code based on https://github.com/whmacken/Build-rFModel-of-BGCs/blob/master/Build_BGC_RndFor_Model_ver11.Rmd
+#for smoting and selecting levels at which to smote 
+
+
+```{r}
+
+# Resample Method : Smoting/clhs/  
+
+# determine which mapunits are too few, ok and too overrepresented
+
+attributed_files <- list.files(final_path, pattern = "total_attributed.gpkg", full.names = TRUE)
+
+attributed_files
+
+
+for(i in attributed_files) {
+   
+  i = attributed_files[4]
+  iname = basename(i)
+  
+  file.id <- gsub("total_attributed.gpkg", "bal_attributed.gpkg", iname)
+  
+   # read in file
+   all_pts <- st_read(i, quiet = TRUE) %>%
+     drop_na(mapunit1) 
+   
+   pcrs = st_crs(all_pts)
+   
+   # check for near zero variance and remove from dataset
+   #nzv = caret::nearZeroVar(all_pts, names = TRUE)  
+  
+  all_pts <- all_pts %>%
+     dplyr::select(-c(cnetwork, bgc, sinkroute))#, all_of(nzv)))
+
+
+  
+ # Estimate the points to sample based on proportional representation of transect data
+  mapunit_count <- dplyr::count(all_pts, mapunit1)
+  
+  x <- ggplot(mapunit_count, aes(mapunit1, n)) + 
+    geom_bar(stat = "identity") + 
+    theme(axis.text.x=element_text(angle = -90, hjust = 0))
+  
+
+# rough plot to estimate (too few / ok and too many)
+  
+# 0 to five points =  remove 
+# 5 to 200 = few 
+# 201 - 499 = fine  
+# 500 + = too many   
+
+   
+  mapunit_count <- mapunit_count %>%
+    mutate(pt_action = case_when(
+            n < 5 ~ "drop",
+            n >= 5 & n < 200 ~ "too_few",
+            n >= 200 & n < 500 ~ "ok",
+            n >= 600 ~ "too_many"
+    ))
+         
+  drop <- mapunit_count %>% filter(pt_action == "drop") %>% pull(mapunit1)   
+  keep <- mapunit_count %>% filter(pt_action == "ok") %>% pull(mapunit1) 
+  few  <- mapunit_count %>% filter(pt_action == "too_few") %>% pull(mapunit1) 
+  many <- mapunit_count %>% filter(pt_action == "too_many") %>% pull(mapunit1) 
+  # drop too few points and keep ok pts 
+  
+  
+  # need to automatically set these based on different training points ? 
+
+   mapunit_count <- mapunit_count %>%
+     drop_na(mapunit1) %>%
+     mutate(logn = log(n,10)) %>%
+     mutate(sample = ifelse(pt_action == "too_few",
+                            as.integer(scales::rescale(logn, to = c(5, 200), 
+                                              from = range(logn, na.rm = TRUE),
+                                              finite = TRUE)), 
+                            ifelse(pt_action == "too_many", 
+                            as.integer(scales::rescale(logn, to = c(500, 1000), 
+                                              from = range(logn, na.rm = TRUE),
+                                              finite = TRUE)),
+                            ifelse(pt_action == "ok", n, NA))),
+            ratio = sample/n) %>%
+   mutate(sample = ifelse(pt_action == "too_many" & sample > n, n-1, sample))
+                                   
+      
+ # set up the parralisation 
+    
+    cl <- parallel::makeCluster(parallel::detectCores() - 1)
+    doParallel::registerDoParallel(cl)
+                 
+     
+  # clhs for mapunits with too many samples
+    
+    clhs_pts <- foreach(ss = many, .combine = rbind, .packages = c("clhs", "sf", "dplyr")) %dopar% {
+      
+       tSub <- all_pts[all_pts$mapunit1 == ss, ]
+      
+       tname <- tSub$mapunit1[1]
+       tSub <- tSub %>% 
+        dplyr::mutate(geomcheck = st_is_empty(tSub)) %>%
+        filter(geomcheck == "FALSE") %>%
+        dplyr::select(-c(geomcheck,mapunit1, mapunit2,id)) %>%
+        tidyr::drop_na()
+      
+       numTP <- mapunit_count %>% filter(mapunit1 == ss) %>% pull(sample)
+
+        tSub <- as(tSub, "Spatial") 
+        t1 <- clhs(tSub, size = numTP, iter = 10, simple = FALSE, progress = TRUE)
+        tSub <- st_as_sf(t1$sampled_data) 
+        tSub <- tSub %>% dplyr::mutate(mapunit1 = tname)
+    } 
+    
+parallel::stopCluster(cl)
+      
+      
+ # smote for samples with too few 
+
+    doParallel::registerDoParallel(cl)
+  
+#    smote_pts <- foreach(ss = few, .combine = rbind, .packages = c("clhs", "sf", "dplyr")) #%dopar% {
+       #ss = few[1]
+       few.ls <- as.list(few)
+       
+  smote_pts <- lapply(few.ls, function (ss){
+       
+       tsmote <- all_pts[all_pts$mapunit1 == ss, ] 
+       
+       tsmote_xy <- data.frame(st_coordinates(tsmote))
+       
+       tsmote <- bind_cols(tsmote, tsmote_xy) %>%
+         mutate_if(is.integer,as.numeric) %>%
+         mutate(tsmote_f = as.factor(mapunit1)) %>%
+         mutate(tsmote_n = as.numeric(tsmote_f)) %>%
+         dplyr::select(-c(mapunit1, mapunit2, id, tsmote_f, geom)) %>%
+         dplyr::select(tsmote_n, everything()) %>%
+         tidyr::drop_na()
+       
+       Num = mapunit_count %>% 
+         filter(mapunit1 == ss) %>%
+         pull(ratio)
+      
+       samples <- smotefamily::SMOTE(tsmote[-1], tsmote$tsmote_n, #CMD with all zeros precluded sampling of coastal units
+                  K = 2, dup_size = Num)# perc.under = 100, k=5,learner = NULL)           # ratio
+       
+      smote <- samples$data  
+      smote <- smote %>% 
+        dplyr::select(-class) %>% 
+        dplyr::mutate(mapunit1 = ss) 
+      smote <- st_as_sf(smote, coords = c("X","Y"), crs =  pcrs) %>% 
+        dplyr::select(mapunit1, everything())
+      
+
+}) 
+ # smote_pts <- data.table::rbindlist(smote_pts)
+  smote_pts <- do.call("rbind", smote_pts)
+ 
+  
+  # select points with ok samples 
+  
+  ok_pts <- all_pts %>% 
+    dplyr::filter(mapunit1 %in% keep) %>%
+    dplyr::select(-c(mapunit2,id)) 
+       
+  ok_xy <- data.frame(st_coordinates(ok_pts))
+    
+  ok_pts <- ok_pts %>% 
+    st_drop_geometry() %>%
+    bind_cols(., ok_xy) 
+    
+    
+   ok_pts <-  st_as_sf(ok_pts, coords = c("X","Y"), crs =  pcrs)
+    
+
+  # combine all points and check the samples
+  
+  pts_bal <- rbind(clhs_pts, smote_pts)
+  pts_bal <- rbind(pts_bal, ok_pts)
+  
+  # recalculate the count and compare to original 
+  
+   mapunit_count_bal <- dplyr::count(pts_bal, mapunit1) %>%
+     mutate(n_bal = n) %>%
+     st_drop_geometry() %>%
+     dplyr::select(-n)
+   
+   mapunit_count <- mapunit_count %>%
+     left_join(mapunit_count_bal, by = "mapunit1")
+   
+   st_write(pts_bal, dsn = paste0(final_path,"/", file.id), delete_layer = TRUE)
+
+}
+
+   
+``` 

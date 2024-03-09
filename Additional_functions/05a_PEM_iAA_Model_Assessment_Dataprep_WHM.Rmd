@@ -1,0 +1,180 @@
+---
+title: "Internal Accuracy Assessment of Machine-learning Predictive Ecosystem Maps"
+subtitle: "by Will MacKenzie & Kiri Daust"
+Methods author: "Will MacKenzie"
+Script author: "Gen Perkins; Kiri Daust; Will MacKenzie; Colin Chisholm; Matt Coghill"
+date: "8/06/2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+```{r global_options, include=FALSE }
+require(knitr)
+
+```
+
+```{r setup, include=FALSE}
+
+library(data.table)
+library(scales)
+library(cowplot)
+library(caret)
+library(sf)
+library(ranger)
+library(tidyverse)
+library(fasterize)
+library(stringr)
+library(dplyr)
+library(raster)
+library(terra)
+library(readxl)
+library(stars)
+library(stringr)
+library(foreach)
+library(tidymodels)
+library(themis)
+library(vip)
+require(stringi)
+require(R.utils)
+
+#devtools::install_github("tidymodels/tune")
+#devtools::install_github("tidymodels/parsnip")
+
+```
+
+# Introduction
+
+This script uses training point samples collected from Stage 1 transects and other point data collected.
+
+This is by boot strapping the transects where 90% are use to provide training points to the build a map, and 10% are withheld and used as AA transects. 
+This analytical approach is then used to guide improvements to the map.
+
+1. Load data prepared in [04a script](https://github.com/bcgov-c/BEC_DevExchange_Work/blob/master/04a_TrainingPt_TransectImport%26Clean.Rmd). 
+2. Split dataset into training and testing sets
+3. Run the model and record model performance metrics
+4. Best model is selected to create a map and associated entropy layer 
+
+
+Prepare directories
+
+```{r session setup, tidy = TRUE, warning=FALSE}
+
+AOI <- "Deception"
+#AOI <- "BoundaryTSA"
+# set up file structure
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+shapes_dir <- file.path(AOI_dir, "0_raw_inputs", "base_layers")
+input_pnts_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData")
+out_dir <- file.path(AOI_dir, "3_maps_analysis","models")
+
+# read in temp functions
+source(here::here('_functions', 'model_gen.R'))
+source(here::here('_functions', 'point_subsample.R'))
+#source(here::here('_functions', 'predict_landscape.R'))
+source(here::here('_functions', 'predict_map.R'))
+source(here::here('_functions', 'model_gen_tidy.R'))
+
+```
+
+```{r read in lookup tables}
+# read in map and model keys
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend2.csv")), 
+                       stringsAsFactor = FALSE)
+
+# #read in the fuzzy index
+fMat <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                  "fuzzy_matrix_basic.csv")) 
+fMat <- data.table(fMat)
+
+# get the map unit level 
+model_param <- file.path(AOI_dir, "_MapUnitLegend", "models2.xlsx")
+
+# set up model parameters:  
+mparam <- read_xlsx(model_param, "models") %>% filter(to_run == 1)
+map_res <- mparam$resolution
+data_res <- paste0("att_", map_res, "m")
+mname <- paste0(mparam$model_name)
+mrep <- mparam$model_rep
+
+# check which catergory of model to be produced
+mtype <- case_when(
+  str_detect(mname, "for_nf")  ~ "forest_non_forest",
+  str_detect(mname, "nf_") ~ "non_forest",
+  str_detect(mname, "fore") ~ "forest"
+)
+
+mmu <- read_xlsx(model_param, "map_unit", skip = 2) %>%
+   filter(!!sym(mparam$map_unit) == 1) %>%
+  dplyr::select(legend_column)%>%
+  pull
+
+mmu <- case_when(
+  mmu == "column_mu" ~ "MapUnit", 
+  mmu == "column_ss" ~ "SiteSeries",
+  mmu == "column_ass" ~ "Association",
+  mmu == "column_cls" ~ "Class",
+  mmu == "column_grp" ~ "Group",
+  mmu == "column_typ" ~ "Type"
+)
+# get covariates
+mcov <- read_xlsx(model_param, "covariates", skip = 2) %>%
+  filter(!!sym(mparam$covariates) == 1) %>%
+  dplyr::select(covariate)
+mcol <- mcov$covariate
+
+# get training point sets
+mtpt <- read_xlsx(model_param, "training_pts", skip = 2) %>%
+  filter(!!sym(mparam$training_pts) == 1) %>%
+  dplyr::select(tp_code)%>%
+  pull
+
+```
+
+##Prepare training and testing datasets for the model
+
+Using the point data generated in various forms from the 04a script, iteratively read in those points and create and save models. Model data is saved in a spreadsheet so that the spreadsheet can be filtered later to find the model with the best accuracy metrics. If the model is broken down by subzone and you have lots of different input datasets, this could take a while!
+
+The random forest model is created using the training data set from above. Repeated cross validation is used to generate model metrics, though remember this is using the training set. We will evaluate our own metrics using the held back test set that was created above.
+
+The model is able to be fine tuned quite nicely. Certain preprocessing parameters are included here to limit the amount of data that is used in the final model, including a correlation cutoff (remove covariates that are highly correlated), nero-zero variance detection (removes covariates that have 0 or close to 0 variance), centering and scaling of the data, and more, though these are the more common setup parameters. Having this prevents actual preprocessing to occur and allows for much more efficient processing.
+
+Using the test dataset, the model is evaluated using the held back points. A confusion matrix is generated and then saved to the model output folder.
+
+
+```{r read in datasets }
+# read in sets of data 
+tpts <- fread("D:/GitHub/PEM_Methods_DevX/Deception_AOI/1_map_inputs/trainingData/att_5m/Stage1_all_5m_pts_data_adj.csv") %>%
+    mutate(tid = gsub("_[[:alpha:]].*","", transect_id)) %>% mutate(BGC = stringi::stri_extract_first(transect_id, regex = '[^_]+')) %>%
+ #mutate(slice = gsub("`.`[[:alnum:]].*","", tid)) %>% 
+   #mutate(slice = gsub("(.*)_.*","\\1",tid)) %>% 
+  mutate(target = as.factor(mapunit1),
+                          target2 = as.factor(mapunit2)) %>% rowid_to_column('pt_id') %>% 
+    dplyr::select(pt_id, target, target2, slice, tid, BGC, any_of(mcol))%>% 
+  rename_all(.funs = tolower) %>% 
+  droplevels()
+tpts$bgc <- str_replace(tpts$bgc, "essf", toupper)
+tpts$tid <- str_replace(tpts$tid, "essf", toupper)
+MU_count <- tpts %>% dplyr::count(target)
+
+## fix this for output.
+ggplot(MU_count, aes(target, n))+
+  geom_bar(stat = 'identity')
+
+# match to the key and filter for forest and non_forest points
+backup = tpts
+#tpts = backup  
+
+
+  
+  mpts <- mpts %>% #filter(target %in% MU_count$target)  %>%
+    droplevels() 
+  fwrite(mpts, "D:/GitHub/PEM_Methods_DevX/Deception_AOI/1_map_inputs/trainingData/att_5m/Stage1_cleaned_5m_pts_data.csv")
+
+```
+
+
+
+ 
