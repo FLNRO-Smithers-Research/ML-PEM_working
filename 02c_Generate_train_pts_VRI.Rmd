@@ -1,0 +1,299 @@
+---
+title: "02c_Generate_training_pts_VRI"
+author: "G. Perkins"
+date: "06/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Generate training points from existing data. 
+
+To complete the initial split for forest and non-forest modelling we can use existing data sets to train the model. 
+
+This will provide an initial split of NBEC and forested areas. We will firstly generate the training data from exisiting datasets availale for the province: 
+
+- Vegetation Resource Inventory (VRI)
+- consolidated cutblock layer for harvesting information 
+- waterbodies
+- roads 
+
+We will generate training points for forested, cutblock, water, non-forest and roads(?). 
+
+```{r library set-up }
+# read in libraries 
+library(raster)
+library(bcdata)
+library(bcmaps)
+library(sf)
+library(readxl)
+library(mapview)
+library(stringr)
+library(dplyr)
+
+
+# set up filepaths
+
+AOI <- "Deception"
+
+# set up file structure
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+trainpt_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData","raw")
+
+# read in aoi
+in_aoi <- st_read("Deception_AOI/0_raw_inputs/base_layers/AOI.gpkg") 
+epsg = 3005
+
+```
+
+# Download VRI data. 
+The VRI dataset is large and complex, we will filter for specific attributed to reduce the size of the file. A list of attribute details can be found [here](https://www2.gov.bc.ca/assets/gov/farming-natural-resources-and-industry/forestry/stewardship/forest-analysis-inventory/data-management/standards/vegcomp_poly_rank1_data_dictionaryv5_2019.pdf). 
+We will be using classification based on the attributes BCLCS_LEVEL_2 and BCLCS_LEVEL_4. 
+
+- bclcs_level_2  = T (tree), N (non_treed), L (land), W (water)
+
+- bclcs_level_4  = 
+   TC (tree coniferous), TB (treed - broadleaf), TM - Treed-mixed, 
+   ST (shrub-tall), SL (shrub-low), 
+   HE (herb), HF (herb-forbs), HG (herb graminoid), 
+   BY (bryoid), BM (byoid-moss), BL (bryoid -lichen), 
+   SI - snow/ice, RO (rock), EL (exposed land)
+
+```{r donwload VRI}
+
+vri <- bcdc_query_geodata("2ebb35d8-c82f-4a17-9c96-612ac3532d55", crs = epsg) %>%
+  bcdata::filter(INTERSECTS(in_aoi)) %>% 
+  bcdata::select(c("BCLCS_LEVEL_2", "BCLCS_LEVEL_4")) %>% # Treed sites
+  collect() 
+
+```
+
+# Download Harvest data
+
+# Need to ensure that cutblocks that occured after the remote sensed data (ie. sentinel image) are excluded as this will confuse the model. 
+# deception sentinel image was collected in 2017. So cutblocks after this date are excluded to avoid confusion.  
+
+```{r}
+# Consolidated cutblocks
+cutblocks <- bcdc_query_geodata("b1b647a6-f271-42e0-9cd0-89ec24bce9f7", crs = epsg) %>% 
+  bcdata::filter(INTERSECTS(in_aoi)) %>% 
+  bcdata::select(c("HARVEST_YEAR")) %>%
+  collect() 
+
+cutblocks <- cutblocks %>%
+  filter(HARVEST_YEAR < 2017)
+
+```
+
+
+```{r}
+train_points <- function(in_aoi, in_poly, size = 1000, code) {
+  
+# in_aoi = in_aoi
+#  in_poly = cutblocks
+#  size = 1000
+#  code = "CB"
+  
+# generated training points points 
+  
+train_pt <- st_sample(in_poly, 
+                   size = size,
+                   type = "random")
+
+st_crs(train_pt) <- 3005
+
+train_pt <- st_intersection(train_pt, in_aoi)
+  
+train_pt <- st_coordinates(train_pt) %>%
+  as.data.frame() %>%
+  mutate(mapunit1 = code)
+
+return(train_pt)
+
+}
+```
+
+  
+1. Generate training points for cutblocks
+
+```{r}
+cutblock_pt <- train_points(in_aoi, cutblocks, 1000, "CB")
+```
+
+
+2. Generate non-forest points 
+
+Non_forest points will be selected from the non-treed classifcation of VRI based on the atribute bclcs_level_2 = N. We will exclude cutblocks from potential sampling areas. Possible to use bclcs_level_4 catergory RO or EL if this is present. 
+
+```{r}
+
+nf <- vri %>% select("BCLCS_LEVEL_2") %>%
+  filter(BCLCS_LEVEL_2 =="N") %>%
+  mutate(id = seq(1,length(BCLCS_LEVEL_2)))
+
+# filter out cutblocks
+nf_cut <- st_intersection(nf, cutblocks)
+nf_cut <- nf_cut %>%
+  dplyr::select(BCLCS_LEVEL_2, id)
+
+nf_area <- nf %>%
+  filter(!id %in% nf_cut$id)
+
+```
+
+
+```{r}
+nf_pt <- train_points(in_aoi, nf_area, 1000, "NF")
+
+```
+
+
+3. Generate forested points 
+
+A review of the attributes BCLCS_LEVEL_4 and BCLCS_LEVEL_2, indicated potential to confude the treed broadleaf / Treed Mixed with non-forest areas. We will generate two sets of training points (all forest and coniferous forest) to assess the impact on the non-forest model. 
+
+```{r}
+# treed forest (mixed and broadleag)
+
+forest <- vri %>% select("BCLCS_LEVEL_4") %>%
+  filter(BCLCS_LEVEL_4 %in% c("TB", "TM")) %>%
+  mutate(id = seq(1,length(BCLCS_LEVEL_4)))
+
+# filter out cutblocks
+for_cut <- st_intersection(forest, cutblocks)
+for_cut <- for_cut %>%
+  dplyr::select(BCLCS_LEVEL_4, id)
+
+for_area <- forest %>%
+  filter(!id %in% for_cut$id)
+
+
+# coniferous forest 
+cforest <- vri %>% select("BCLCS_LEVEL_4") %>%
+  filter(BCLCS_LEVEL_4 %in% "TC") %>%
+  mutate(id = seq(1,length(BCLCS_LEVEL_4)))
+
+# filter out cutblocks
+cfor_cut <- st_intersection(cforest, cutblocks)
+cfor_cut <- cfor_cut %>%
+  dplyr::select(BCLCS_LEVEL_4, id)
+
+cfor_area <- cforest %>%
+  filter(!id %in% cfor_cut$id)
+
+```
+
+Gnerate points for coniferout and all forest data sets
+
+```{r}
+forest_pt <- train_points(in_aoi, for_area, 1000, "BMFO")
+Cforest_pt <- train_points(in_aoi, cfor_area, 1000, "CFO")
+
+```
+
+
+4) Water points 
+
+There are two methods for extracting water points include. Primarily we will use the data available through the waterbodies (lakes) layer on the bc data catalogue. Colecting the centroid was also tested but found to be ineffective in non circular lakes 
+
+```{r}
+waterbodies <- bcdc_query_geodata("cb1e3aba-d3fe-4de1-a2d4-b8b6650fb1f6", crs = 3005) %>% # lakes
+  bcdata::filter(INTERSECTS(in_aoi)) %>% 
+  collect() 
+
+waterbodies <- waterbodies %>%
+  select(c(WATERBODY_POLY_ID, WATERBODY_TYPE, AREA_HA)) 
+
+```
+
+```{r}
+
+wb_pt <- train_points(in_aoi, waterbodies, 1000, "LA")
+
+```
+
+
+5) Road training points 
+
+The main road network layer has too many roads in it. Filter it down to only
+include named roads and combine those with actual mapped FSR's
+
+
+```{r}
+ roads <- bcdc_query_geodata("bb060417-b6e6-4548-b837-f9060d94743e", crs = epsg) %>% 
+    bcdata::filter(
+      BBOX(st_bbox(in_aoi), crs = paste0("EPSG:", epsg)),
+      ROAD_NAME_ID > 0) %>% 
+    collect()
+
+roads <- roads %>% 
+    dplyr::select(id, ROAD_SURFACE, ROAD_CLASS, FEATURE_LENGTH_M) %>% 
+    filter(ROAD_SURFACE %in% c("loose", "paved")) %>%
+  st_buffer(1)
+
+```
+
+
+```{r}
+road_pt <- train_points(in_aoi, roads, 1000, "RO")
+
+```
+
+# combine all the points 
+
+We can combine all the training points and output in tabel and spatial format. 
+
+```{r}
+vri_pts <- bind_rows(forest_pt, Cforest_pt, nf_pt, cutblock_pt, wb_pt, road_pt)
+
+write.csv(vri_pts, file = file.path(trainpt_dir, "vri_train_pts.csv"))
+
+
+vri_pts_sf <- st_as_sf(vri_pts, coords = c("X", "Y"), crs = 3005)
+
+st_write(vri_pts_sf, file.path(trainpt_dir, "vri_train_pts.gpkg"))
+
+```
+
+
+
+
+**References** and helpful scripts used in the production of this script: 
+
+* Matt Coghills [script](#https://github.com/mcoghill/Sechelt_Cultural_Plants/blob/master/02a_PointData_Prep.Rmd)
+
+* 2019 Geospatial Workshop [script](#https://github.com/bcgov-datasci-labs/BCForestNonForestPEM/blob/master/Tpoints.R) 
+
+
+**Appendices**
+
+Alternate options for collecting water training points 
+
+# read in the water layer and check against the sentinel layer : see reference Kaplan and Avdan 2017
+#https://www.tandfonline.com/doi/pdf/10.1080/22797254.2017.1297540
+
+# 
+# # mask to nonforest areas
+# water10 <- raster(file.path(cov_dir, "10m", "sen_mndwi.tif"))
+# water5 <- raster(file.path(cov_dir, "5m", "sen_mndwi.tif"))
+# 
+# wb10 <- as.data.frame(raster::extract(water10, wbpt[1:2]))
+# wb5 <- as.data.frame(raster::extract(water5, wbpt[1:2]))
+# 
+# names(wb10) = "wb10"
+# names(wb5) = "wb5"
+# 
+# wb <- cbind(wbpt, wb10, wb5)
+# 
+# hist(wb$wb10)
+# hist(wb$wb5)
+
+# remove deep waterbodies # using threshold
+#water[water > 0.5] <- NA
+
+write.csv(wb, file = "Deception_AOI/1_map_inputs/trainingData/raw/water_train_pts.csv")
+#write.csv(wbpt, file = "Deception_AOI/1_map_inputs/trainingData/raw/water_train_pts.csv")
+

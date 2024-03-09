@@ -1,0 +1,337 @@
+---
+title: "Testing hypercube space using different number of slices"
+output: html_document
+
+
+---
+
+```{r setup options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=FALSE,
+                      warning = FALSE, message = FALSE,
+                      results = 'show',
+                      options(dplyr.summarise.inform = FALSE),
+                      eval = TRUE)  ## flag eval = false for quick text edits
+```
+
+
+```{r}
+library(data.table)
+library(terra)
+library(sf)
+require(tidyverse)
+require(ggpubr)
+require(foreach)
+source(here::here('_functions', 'doc_theme_pem.R'))
+source(here::here('_functions', 'compare_hypercubes.R'))
+```
+
+
+
+```{r prep target info}
+map <- rast(c("LocalData/rid_level.tif" ,"LocalData/swi_slope.tif", 
+              "LocalData/tpi.tif","LocalData/twi.tif", 
+              "LocalData/valley_depth_2.tif"))
+# map_dt <- as.data.table(map) %>% na.omit()
+# ##manually find limits for clamp
+# require(DataExplorer)
+#   plot_histogram(map_dt)
+  
+map <- terra::clamp(map, lower = c(750, 0, -13 , 0, 0), upper = c(1550, 1, 13, 24, 475))
+# map_dt2 <- as.data.table(map2)
+#  plot_histogram(map_dt2)
+
+ target_classified <- terra::sapp(map, \(x,...) setValues(x,values(classify(x,10))))
+
+  concat_fn <- function(...){
+    data <- list(...)
+    out <- data[[1]]
+    for(i in 2:length(data)){
+      out <- out + data[[i]]*10^(i-1)
+    }
+    return(out)
+  }
+
+   target_id <- lapp(target_classified,concat_fn)
+
+  target_freq <- as.data.table(freq(target_id)) ##target_freq has counts of all bins
+
+  setorder(target_freq,-count)
+
+  ranges <- minmax(map)
+  
+  
+```
+
+
+```{r view univariate distributions}
+thesample <- st_read(file.path("D:/GitHub/PEM_Methods_DevX/LocalData/s1_clean_neighbours_allatts.gpkg"))
+#thesample <- as.data.table(thesample) %>% filter(Position == "Orig")
+# map_dt <- as.data.table(map2)
+thesample <- as.data.table(thesample) %>% filter(Position == "Orig")
+```
+
+
+```{r view univariate distributions}
+# plot_histogram(thesample2)
+#   plot_histogram(map3)
+#   create_report(thesample2)
+#   create_report(map3)
+#     
+#   setorder(target_freq,-count)
+#   target_freq <- as.data.frame(target_freq) %>% mutate(bin = as.factor(value))
+#   
+#   ggplot(target_freq, aes(value, count))+
+#     geom_col()
+    
+
+```
+
+```{r builds model iteratively by slice_no, echo = FALSE, eval = FALSE}
+# get unique ss for the given variant 
+require(tictoc)
+
+##NEED TO BRING IN TRDAT FROM Balancing script**************************
+
+allcomp <- fread("Localdata/SliceCompare.csv")
+hypervars = c('rid_level', 'swi_slope', 'tpi', 'twi', 'valley_depth_2')
+#allcomp <- allcomp[c(1,2),]
+tic()
+sresults <- foreach(k = 1:nrow(allcomp)) %do% {
+
+ #k <- 1
+  train_slice <- allcomp[k,1:5] %>% t() %>% data.frame
+  train_slice <- as.vector(train_slice$.[!is.na(train_slice$.)])
+  slice_no = as.vector(allcomp[k,6])
+  test_no = as.vector(allcomp[k,7])
+  #test_slice <- allcomp[k,1] %>% droplevels()%>% t()  
+  subsample <- as.data.table(thesample) %>% filter(slice %in% train_slice)  %>% dplyr::select(-slice)
+
+result <- compare_hypercubes(target_hypercube = map, sample_hypercube = subsample, bins = 10, varlist = hypervars)
+result$slice_no <- slice_no$slice_no
+result$test_no <- test_no$test_no
+return(result)
+  ### split into train and test based on 5-site slices
+}
+toc()
+allresults <- as.data.table(sresults) %>% t() %>% as.data.frame %>% dplyr::rename("missed" = 1, 'missed_ex' = 2, 'num_slices' = 6, 'test_id' = 7) %>% dplyr::select(missed, missed_ex, num_slices, test_id)
+
+fwrite(allresults, "./PEM_standards_manuscripts/outputs/MissedSpacebySlice.csv")
+```
+
+
+
+```{r compare accuracy of different slice numbers, echo = FALSE, warning = FALSE, message= FALSE}
+allresults <- fread("./PEM_standards_manuscripts/outputs/MissedSpacebySlice.csv")#  
+allresults2 <- allresults %>% dplyr::select(-test_id) %>% dplyr::rename("Missed Bin Area" = "missed","Missed Extreme Bin Area" = 'missed_ex') %>% 
+  pivot_longer(!num_slices, names_to = "missed_type", values_to = "missed") %>% mutate(num_slices2  = as.factor(num_slices)) 
+
+overall_acc <- ggplot(allresults2, aes(num_slices2, missed)) + 
+  geom_boxplot() +
+  facet_wrap("missed_type", nrow = 1)+
+  geom_hline(yintercept = 10,linetype ="dashed", color = "black", size = 0.5) + 
+    geom_hline(yintercept = 5,linetype ="dashed", color = "grey", size = 0.5) + 
+  ggtitle(paste0()) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("Number of Slices Sampled") + ylab("Percent of AOI with Unsampled Bins") + 
+  ylim(-0.05, 50) +
+  theme_pem_facet() + 
+  scale_fill_discrete_sequential(palette = "Light Grays")
+overall_acc
+   
+finalise_facet_plot(overall_acc, "./PEM_standards_manuscripts/outputs/missed_bins.png", width_pixels=360,
+                          height_pixels=240)
+```
+
+
+
+## Impact of adding more slices
+
+The plots below show the range in spread of accuracy measures when additional slices are added. 
+The initial plot shows boxplot results (95% spread of data with the quartiles). 
+The second plot shows the **average** and **standard deviation** of all replicates for the number of slices, for examples slice no = 1 is two slices of data (1 for train and 1 for test), Slice no. 4 = 1 test and 3 train. 
+
+SBSmc2 = 75 model runs (5 slices)
+ESSFmc = 186 model runs (6 slices)
+ESSFmcw = 2 model runs (2 slices)
+
+```{r, echo = FALSE}
+overall_acc
+
+```
+
+## ESSFmc. 
+ This variant has 6 slices but very imbalanced in transect number per slice. 
+
+```{r, echo = FALSE, messgae = FALSE}
+data_all <- read_csv(file.path(paste0(AOI_dir), "results", "num_slice_acc", "ESSFmcacc_results.csv"))[,-1]
+
+bgcs2 <- "ESSFmc"
+
+# check the number of site series per slice
+data_check_ss <- as.data.frame(table(data_all$slice))
+data_check_no <- as.data.frame(table(data_all$slice_no))
+data_check <- as.data.frame(table(data_check_ss$Freq))
+
+acc_sum <- data_all  %>%
+   mutate(slice = as.factor(slice)) %>%
+    mutate(across(ends_with("overall"), ~.x *100)) %>%
+    mutate(across(ends_with("meanacc"), ~.x *100)) %>%
+    dplyr::select(slice_no.x, slice, transect_no,
+                  aspat_p_overall,  aspat_p_meanacc, 
+                  aspat_fp_overall,  aspat_fp_meanacc,
+                  spat_p_overall, spat_p_meanacc,
+                  spat_pf_overall,  spat_pf_meanacc, 
+                  aspat_pa_overall,  aspat_pa_meanacc,
+                  aspat_fpa_overall, aspat_fpa_meanacc,
+                  spat_pa_overall,  spat_pa_meanacc,
+                  spat_fpa_overall, spat_fpa_meanacc ) %>%
+  distinct() %>% mutate(slice_no.x = as.factor(slice_no.x))
+
+acc_sum_long <- acc_sum %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  filter(accuracy_type != "transect_no")
+
+# add the grouping for number of slices (and calculate average)
+bsRes2_all <- acc_sum_long %>% mutate(accuracy_type = as.factor(accuracy_type))
+
+# perform T-test
+zz <- compare_means(value ~ slice_no.x, bsRes2_all, method = "t.test", group.by = "accuracy_type", p.adjust.method = "holm") 
+
+bsRes2_detail <- format_accuracy_measures(bsRes2_all)
+
+overall_acc1 <- ggplot(aes(y = value, x = accuracy_type_label, fill = as.factor(slice_no.x)),data = bsRes2_detail) + 
+   geom_boxplot() +
+  facet_wrap(~type_f, nrow = 2)+
+  geom_hline(yintercept = 65,linetype ="dashed", color = "black", size = 0.8) +  
+  ggtitle(paste0("Accuracy measure with increasing slices: ", bgcs2)) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("iteration") + ylab("Accuracy") + 
+  ylim(-0.05, 100) +
+  theme_pem_facet() + 
+  scale_fill_discrete_sequential(palette = "Light Grays")
+```
+
+```{r, echo = FALSE}
+overall_acc1
+
+```
+
+## ESSFmcw
+
+```{r - essfmcw, echo = FALSE}
+###readin saved acc output csv s and combine
+data_all <- read_csv(file.path(paste0(AOI_dir), "results", "num_slice_acc", "ESSFmcwacc_results.csv"))[,-1]
+
+bgcs2 <- "ESSFmcw"
+
+# check the number of site series per slice
+data_check_ss <- as.data.frame(table(data_all$slice))
+data_check_no <- as.data.frame(table(data_all$slice_no))
+data_check <- as.data.frame(table(data_check_ss$Freq))
+
+acc_sum <- data_all  %>%
+   mutate(slice = as.factor(slice)) %>%
+    mutate(across(ends_with("overall"), ~.x *100)) %>%
+    mutate(across(ends_with("meanacc"), ~.x *100)) %>%
+    dplyr::select(slice_no, slice, transect_no,
+                  aspat_p_overall,  aspat_p_meanacc, 
+                  aspat_fp_overall,  aspat_fp_meanacc,
+                  spat_p_overall, spat_p_meanacc,
+                  spat_pf_overall,  spat_pf_meanacc, 
+                  aspat_pa_overall,  aspat_pa_meanacc,
+                  aspat_fpa_overall, aspat_fpa_meanacc,
+                  spat_pa_overall,  spat_pa_meanacc,
+                  spat_fpa_overall, spat_fpa_meanacc ) %>%
+  distinct() %>% mutate(slice_no = as.factor(slice_no))
+
+acc_sum_long <- acc_sum %>%
+    pivot_longer(cols = where(is.numeric), names_to = "accuracy_type", values_to = "value") %>%
+  filter(accuracy_type != "transect_no")
+
+# add the grouping for number of slices (and calculate average)
+bsRes2_all <- acc_sum_long %>% mutate(accuracy_type = as.factor(accuracy_type))
+
+# perform T-test
+#zz <- compare_means(value ~ slice_no, bsRes2_all, method = "t.test", group.by = "accuracy_type", #p.adjust.method = "holm") 
+
+bsRes2_detail <- format_accuracy_measures(bsRes2_all)
+
+overall_acc2 <- ggplot(aes(y = value, x = accuracy_type_label, fill = as.factor(slice_no)),data = bsRes2_detail) + 
+   geom_boxplot() +
+  facet_wrap(~type_f, nrow = 2)+
+  geom_hline(yintercept = 65,linetype ="dashed", color = "black", size = 0.8) +  
+  ggtitle(paste0("Accuracy measure with increasing slices: ", bgcs2)) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("iteration") + ylab("Accuracy") + 
+  ylim(-0.05, 100) +
+  theme_pem_facet() + 
+  scale_fill_discrete_sequential(palette = "Light Grays")
+
+```
+
+
+```{r}
+overall_acc2
+```
+
+
+**Take aways**
+- overall accuracy improves with adding more data
+- minimal change in the error bars (potentially an issue?)
+
+```{r, echo = FALSE, eval = FALSE}
+### Number of site series sampled by number of slices used in build
+bgcoi_string = "sbsmc"
+
+allcomp <- read_csv(file.path(AOI_dir, "results", "num_slice_acc", "SBSmc2matrix.csv"))[,-1]
+
+# trDat2 <- tpts %>%
+#   filter(str_detect(tid, bgcoi_string)) %>% # need to adjust this
+#   mutate(slice = as.factor(slice)) %>%
+#   dplyr::select(-bgc_cat)
+# 
+
+n_mapunits <- foreach(k = 1:nrow(allcomp), .combine=rbind) %do% {
+#n_mapunits <- foreach(k = 1:5, .combine=rbind) %do% {  
+#k = 1
+   
+   train_slice <- allcomp[k,2:(length(allcomp)-2)] %>% droplevels() %>% t()
+   test_slice <- allcomp[k,1] %>% droplevels() %>% t()
+  
+   # training set
+  BGC_train <- trDat %>% 
+    dplyr::filter(slice %in% train_slice) %>%
+    filter(is.na(target2)) %>% 
+    filter(!is.na(target))
+  
+  mapunit_no <- length(unique(BGC_train$target)) %>% as.data.frame %>% dplyr::rename(mapunit_no = 1)
+ 
+  BGC_test <- trDat2 %>% dplyr::filter(slice %in% test_slice) #%>%    
+ # filter(is.na(target2)) %>% filter(!is.na(target))
+  
+  mapunit_test <- length(unique(BGC_test$target)) %>% as.data.frame %>% dplyr::rename(mapunit_test = 1) 
+
+  all <- rbind(BGC_test, BGC_train)
+  all_no <- length(unique(all$target)) %>% as.data.frame %>% dplyr::rename(mapunit_all = 1) 
+  
+  build_no <- allcomp[k,]  %>% dplyr::select(slice_no) 
+  mapunit_count <- cbind(build_no, mapunit_no, mapunit_test, all_no)
+  mapunit_count <- mapunit_count %>%
+    mutate(slice = paste0(k))
+}
+
+
+overall_acc1 <- ggplot(aes(y = mapunit_all, x = slice_no),data = n_mapunits) + 
+  ggtitle(paste0(bgcoi_string)) +   
+  geom_jitter( width = 0, height = .2) +
+   xlab("Number of Slices in Analysis Set") + ylab("Map units in Sample Set")+
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 10), breaks= pretty_breaks()) +
+  theme_pem()
+overall_acc1
+
+ggsave("../PEM_standards_manuscripts/ESSFmc_UnitsperAnalysisSetSize.pdf")
+
+```
+
+
+
