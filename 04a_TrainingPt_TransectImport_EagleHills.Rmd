@@ -1,0 +1,282 @@
+---
+title: "Stage 1 Training Point Consolidation for Eagle Hills"
+Script author: "Gen Perkins"
+date: "20/01/2020"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+
+```{r global_options, include=FALSE }
+require(knitr)
+
+```
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(raster)
+library(foreach)
+library(sf)
+library(clhs)
+
+```
+
+# Introduction
+
+
+This script will read in and process transect data and then standardize point data in preparation for point subsampling. The outputs are cleaned point data, cleaned pts (transects) and line segments generated from the transect points. 
+
+Eagle Hills has a number of data schemas collected these include: The data was collected in 2018 and the file contains all of the hypercube sampled, opportunistic, and air photo interpreted points. The “SampleType” column indicates which points are which, all of the air photo interpreted points are labelled with “imagery”, and are located near the bottom of the spreadsheet.
+
+## deception training points types
+#s2 - transects (line)
+#s2 - clhs (pts) (hypercube points )
+#s2 - purpose_points (pts) (opportunistic)
+#s2 - air_interp_purpose (pts) (imagery)
+#s2 - air_interp_clhs (pts)
+#s2 - watlas_water_pt (pts)
+#s2 - vri_harvestfire_pts (pts)
+
+
+1. Import field transect points created in script 
+2. Import field and airphoto call training point data collected in previous years and summarize for review.
+
+```{r setup user directories}
+AOI <- "EagleHills"
+
+res_folder <- "2.5m"
+AOI_dir <- file.path(".", paste0(AOI,"_AOI"))
+trans_data <- file.path(AOI_dir, "2_sample_design")
+
+# stage 1 data:
+
+trans_layout <- file.path(AOI_dir, "2_sample_design", "Stage1_StudyDesign", "transect_layout")
+
+output_pnts_dir <- file.path(AOI_dir, "2_sample_design", "stage1_StudyDesign", "training_pts")
+
+# 2018 point data 
+
+training.dir <- file.path(AOI_dir, "2_sample_design", "stage2_point_data")
+
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", 
+                                 paste0(AOI, "_MapUnitLegend.csv")), 
+                       stringsAsFactor = FALSE)
+
+# all stages
+output_cleaned_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData", "clean")
+
+cov.dir <- file.path(AOI_dir, "1_map_inputs", "covariates")
+
+if(!dir.exists(output_pnts_dir)) dir.create(output_pnts_dir, recursive = TRUE)
+
+```
+
+
+## Introduction
+
+## 1. Set up folder structure
+
+Setup functions 
+
+```{r Functions}
+
+source(here::here('_functions', 'extend_lines.R'))
+source(here::here('_functions', 'make_lines.R'))
+source(here::here('_functions', 'transect_sample.R'))
+source(here::here('_functions', 'multiline_to_line.R'))
+
+```
+
+
+
+# Process EagleHills Transect data: 
+
+## 1) Import and clean Avenza field transect data
+
+
+```{r import base files to run analysis, tidy = TRUE, warning=FALSE}
+
+# stage 1 : transect_layout
+
+trans <- list.files(trans_layout, pattern = ".gpkg$", full.names = TRUE, recursive = FALSE)
+
+transect <- st_read(trans, quiet = TRUE) %>%
+   st_transform(3005)
+
+transect_layout <- foreach(x = trans, .combine = rbind) %do% {
+  clhs_layers <- st_layers(x)
+  lines <- which(clhs_layers[["geomtype"]] %in% c("Line String", "Multi Line String"))
+  if(length(lines)) {
+    transects <- foreach(y = clhs_layers$name[lines], .combine = rbind) %do% {
+      transect <- st_read(x, y, quiet = TRUE) %>% 
+        rename_all(recode, geom = "geometry") %>% 
+        rename_all(.funs = tolower) %>%
+        dplyr::select(id) %>% 
+        mutate(id = as.character(id)) %>% 
+        st_transform(3005)
+    }
+  } 
+} #%>% dplyr::rename(ID = id)
+
+transect_layout_buf <- st_buffer(transect_layout, 25)
+ 
+st_write(transect_layout, file.path(output_pnts_dir, paste0("transect_layout_s1.gpkg")), 
+         delete_layer = TRUE)
+
+```
+
+
+2. Connect the placemarks waypoints into a traverse using the running number name assigned by PDF maps
+
+The following chunk creates some basic folders and loads in data that will be used across all sampling types (a raster template and the original CLHS transects).
+
+
+```{r prepare raw data (unzip data and split into points and lines)}
+
+# read in the transect_data 
+s1_data <- file.path(trans_data, "stage1_StudyDesign", "transect_data")
+s1_data <- list.files(s1_data, pattern = ".shp$", full.names = TRUE)
+
+# update column names for the following files to match other data 
+
+transect_data <- foreach(pfiles = s1_data, .combine = rbind) %do% {
+  #pfiles = s1_data[2]
+  s1_layers <- st_layers(pfiles)
+  pts <- which(s1_layers[["geomtype"]] %in% c("3D Point"))
+  if(length(pts)) { 
+    #print(pfiles)
+    trans_pts <- foreach(y = s1_layers$name[pts], .combine = rbind) %do% {
+      transect <- st_read(pfiles , y, quiet = TRUE) %>% 
+        rename_all(recode, geom = "geometry")
+      
+      if(any(names(transect) %in% "X1Observer")){
+        print(paste0("reformat names:", pfiles, y ))
+        transect <- transect %>%
+          dplyr::rename(
+            "observer" = "X1Observer",
+            "mapunit1" = "X2MapUnit1", 
+            "transition" = "X3Transitio",
+            "mapunit2" = "X4MapUnit2", 
+            "comments" = "X5Comments", 
+            "pt_type" = "X6PointType") %>%
+          rename_all(.funs = tolower) %>%
+          mutate("transect_id" = NA,
+                 transition = as.character(transition)) %>%
+          st_transform(3005)
+        } 
+      }
+    }
+  }
+
+s1_pts <- transect_data %>%
+    st_transform(3005) %>% 
+    st_zm() %>%
+    st_join(., transect_layout_buf, join = st_intersects) %>%
+    rename_all(.funs = tolower) %>%
+    mutate(transect_id = id
+           ) %>%
+    mutate(order = as.numeric(gsub("Placemark ", "", name))) %>%
+    dplyr::select(mapunit1, mapunit2, pt_type,  transect_id, transition, observer, comments, order) %>%
+  distinct(., .keep_all = TRUE) %>%
+  mutate(data_type = ifelse(is.na(transect_id), "incidental", "s1"))
+
+
+# match to the baseunit key using mapunit legend & format observer column
+s1_pts <- format_mapunit_names(s1_pts, map.key)
+#s1_pts <- fill_observer(s1_pts)
+
+st_write(s1_pts, file.path(output_pnts_dir, "s1_pts.gpkg"), delete_layer = TRUE)
+
+# convert points to transects:
+s1_pts <- s1_pts %>%
+  filter(!is.na(transect_id)) %>%
+  group_by(transect_id) %>%
+  dplyr::arrange(order, .by_group = TRUE) %>%
+  ungroup()
+
+# covert to lines
+processed_transects <- make_lines(GPSPoints = s1_pts,
+                                  #GPSTracks = all_tracks,
+                                  Transects = transect_layout,
+                                  method = "pts2lines",
+                                  sortby = "order", #"tracklog",
+                                  tBuffer = 30, PROJ = 3005) %>%
+  mutate(mapunit12 = paste0(mapunit1,"_", mapunit2)) %>%
+  mutate(mapunit12 = gsub("_NA","", mapunit12)) %>%
+  dplyr::select(-TID, ID, X, Y)
+
+st_write(processed_transects,  file.path(output_pnts_dir, "proc_s1_transects.gpkg"),
+         delete_layer = TRUE)
+
+```
+
+
+# Process Eagle hills point data collection 
+
+```{r}
+# Read in 2018 point data
+#1 - s2 - clhs (pts)hypercube",
+#2 - s2 - purpose_points (pts)"opportunistic",
+#3 - s2 - air_interp_purpose (pts)"imagery")
+
+pnts <- read.csv(file.path(training.dir, "AllData_Cleaned.csv"), na.strings = c("", NA)) %>%
+    st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) %>%
+    st_transform(crs = 3005) %>%
+    dplyr::rename(mapunit1 = SITESERIES_5m, 
+                  mapunit2 = TSITESERIES_5m) %>%
+    rename_all(.funs = tolower)  %>%
+    dplyr::select(id, crew, mapunit1, transition_5m, mapunit2,     
+        sampletype, comment , geometry) %>%
+    dplyr::rename(observer = crew, 
+                  transition = transition_5m, 
+                  data_type = sampletype, 
+                  comments = comment) %>%
+    cbind(st_coordinates(.)) %>% 
+    st_drop_geometry() %>% 
+    rename_all(.funs = tolower) %>% 
+    mutate(mapunit1 = (trimws(mapunit1)),
+          mapunit2 = (trimws(mapunit2))) %>%
+    mutate(mapunit2 = gsub("/", "_", mapunit2), 
+           mapunit1 = gsub("/", "_", mapunit1)) %>%
+    mutate(data_type = case_when (
+      data_type == "hypercube" ~ "pnt_clhs", 
+      data_type == "imagery" ~ "air_interp_purpose",
+      data_type == "opportunistic" ~ "stage2_pts_purpose"
+    ))
+  
+
+#sort(unique(pnts$mapunit1))
+
+#693
+
+pnts <- pnts %>%
+   st_as_sf(coords = c("x", "y"), crs = 3005) 
+
+# split out into air interp , clhs points and random field points
+pnts_air <- pnts %>% 
+    dplyr::filter(data_type == "air_interp_purpose") 
+  
+pnts_chls <- pnts %>%
+    dplyr::filter(data_type == "pnt_clhs") 
+  
+pnts_purpose <- pnts %>% 
+    dplyr::filter(data_type == "stage2_pts_purpose") 
+
+#447 + 190 + 56 # error check 
+
+# write out points
+
+ st_write(pnts_purpose, file.path(output_cleaned_dir, "s2_purpose_pts.gpkg"), delete_layer = TRUE) 
+ 
+  st_write(pnts_air, file.path(output_cleaned_dir,  "air_interp_purpose_pts.gpkg"),  delete_layer = TRUE)
+ 
+ st_write(pnts_chls, file.path(output_cleaned_dir,  "clhs_pts.gpkg"), delete_layer = TRUE) 
+
+
+```
+
+
+

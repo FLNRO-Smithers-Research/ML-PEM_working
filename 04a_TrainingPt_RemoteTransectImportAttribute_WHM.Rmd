@@ -1,0 +1,290 @@
+---
+title: "Import of Remote Transect data from QGIS interpreted transects"
+subtitle: "by Will MacKenzie,Gen Perkins,  Kiri Daust"
+Methods author: "Will MacKenzie"
+date: "08/08/2022"
+output: html_document
+---
+
+```{r global_options, include=FALSE }
+require(knitr)
+
+```
+
+This script will read in and process transect data and then standardize point data in preparation for point subsampling. The outputs are cleaned point data, cleaned pts (transects) and line segments generated from the transect points. 
+
+```{r setup, include=FALSE}
+
+#knitr::opts_chunk$set(echo = TRUE)
+library(plyr)
+library(tidyverse)
+library(raster)
+library(sf)
+library(fasterize)
+library(clhs)
+library(scales)
+library(foreach)
+#library(velox)
+library(LearnGeom)
+library(ranger)
+library(stars)
+library(dplyr)
+library(terra)
+library(data.table)
+
+```
+
+## Introduction
+
+## 1. Set up folder structure
+
+```{r set up folder structure }
+
+AOI <- "Deception"
+res <- 5
+
+AOI_dir <- file.path(paste0(AOI,"_AOI"))
+cov_dir <- file.path(AOI_dir, "1_map_inputs","covariates")
+
+##remote transects
+#trans_data <- file.path(AOI_dir, "2_sample_design", "stage1_remoteTransectsDesign", #"samplepoints")
+trans_data <- file.path(AOI_dir, "2_sample_design", "stage1_remoteTransectsDesign", "transect_data")
+
+trans_layout <- file.path(AOI_dir, "2_sample_design", "stage1_remoteTransectsDesign", "clhs_sample_plans")
+
+output_pnts_dir <- file.path(AOI_dir, "2_sample_design", "stage1_remoteTransectsDesign", "training_pts")
+
+# 
+map.key  <- read.csv(file.path(AOI_dir, "_MapUnitLegend", "remote_map_key.csv"),
+                        stringsAsFactor = FALSE)
+
+# all stages - output the cleaned point files directly here (ONLY PT FILES)
+output_cleaned_dir <- file.path(AOI_dir, "1_map_inputs", "trainingData", "clean")
+
+#res_folder <- paste0(res, "m")
+
+if(!dir.exists(output_pnts_dir)) dir.create(output_pnts_dir, recursive = TRUE)
+```
+
+
+Setup functions 
+
+```{r Functions}
+
+source(here::here('_functions', 'extend_lines.R'))
+source(here::here('_functions', 'make_lines.R'))
+source(here::here('_functions', 'transect_sample.R'))
+source(here::here('_functions', 'multiline_to_line.R'))
+source(here::here('_functions', '_add_neighbours.R'))
+
+```
+
+
+## 1) Import transect data
+
+```{r import transect layouts, tidy = TRUE, warning=FALSE}
+
+# stage 1 : transect_layout
+
+trans <- list.files(trans_layout, pattern = ".gpkg$", full.names = TRUE, recursive = FALSE)
+
+transect_layout <- foreach(x = trans, .combine = rbind) %do% {
+  clhs_layers <- st_layers(x)
+  lines <- which(clhs_layers[["geomtype"]] %in% c("Line String", "Multi Line String"))
+  if(length(lines)) {
+    transects <- foreach(y = clhs_layers$name[lines], .combine = rbind) %do% {
+      transect <- st_read(x, y, quiet = TRUE) %>% 
+        rename_all(recode, geom = "geometry") %>% 
+        rename_all(.funs = tolower) %>%
+        dplyr::select(id) %>% 
+        mutate(id = as.character(id)) %>% 
+        st_transform(3005)
+    }
+  } 
+} #%>% dplyr::rename(ID = id)
+
+ transect_layout_buf <- st_buffer(transect_layout, 10)
+#  
+# st_write(transect_layout, file.path(output_pnts_dir, paste0("transect_layout_r1.gpkg")), 
+#          delete_layer = TRUE)
+
+```
+
+
+2. Connect the placemarks waypoints into a traverse using the running number name assigned by PDF maps
+
+The following chunk creates some basic folders and loads in data that will be used across all sampling types (a raster template and the original CLHS transects).
+
+
+```{r import interpretated waypoints (unzip data and split into points and lines)}
+
+# read in the transect_data 
+remote_data <- list.files(trans_data, pattern = ".gpkg$", full.names = TRUE, recursive = FALSE)
+#r1_data <- list.files(remote_data, pattern = ".gpkg$", full.names = TRUE)
+remote_data <- remote_data[1]
+# update column names for the following files to match other data 
+
+transect_data <- foreach(pfiles = remote_data, .combine = rbind) %do% {
+  #pfiles = remote_data[1]
+  r1_layers <- st_layers(pfiles)
+  pts <- which(r1_layers[["geomtype"]] %in% c("Point"))
+  if(length(pts)) { 
+    #print(pfiles)
+    # y = "Interpreted points"
+    # y = "extra_transects_interpreted"
+    trans_pts <- foreach(y = r1_layers$name[pts], .combine = rbind) %do% {
+      transect <- st_read(pfiles , y, quiet = TRUE) %>% 
+        rename_all(recode, geom = "geometry") %>% 
+          st_transform(3005)
+        } 
+      }
+    }
+
+
+r1_pts <- transect_data
+
+r1_pts <- r1_pts %>%
+    st_transform(3005) %>% 
+    st_zm() %>%
+    st_join(., transect_layout_buf, join = st_intersects) %>%
+    rename_all(.funs = tolower) %>%
+    mutate(transect_id = id, 
+           ) %>%
+    #mutate(order = as.numeric(gsub("Placemark ", "", name))) %>%
+      mutate(order = pt_num) %>%
+    dplyr::select(typechange, transect_id, order) %>%
+  #distinct(., .keep_all = TRUE) %>%
+  mutate(data_type = ifelse(is.na(transect_id), "incidental", "r1"))
+
+
+#r1_pts <- fill_observer(r1_pts)
+### update codes based on lookup
+# map.key  <- read.csv(file.path(AOI_dir, "2_sample_design", #"stage1_remoteTransectsDesign","remote_map_key.csv"),
+#                        stringsAsFactor = FALSE)
+
+## remove special codes
+special <- map.key %>% filter(Category == "special_prefix")
+special <- special$FieldCall
+r1_pts$mapunit <- str_remove_all(r1_pts$typechange, paste(special, collapse = "|")) 
+r1_pts[c('mapunit1', 'mapunit2')] <- str_split_fixed(r1_pts$mapunit , '/', 2)
+r1_pts <- format_mapunit_names(r1_pts, map.key)
+
+## error check matching calls to map unit codes
+#fix <- points_final %>%
+#  filter(is.na(mapunit1_key)) %>%
+#  dplyr::select(mapunit1) %>%
+#  pull(mapunit1)
+#sort(unique(fix))
+
+
+st_write(r1_pts, file.path(output_pnts_dir, "remote_pts.gpkg"), delete_layer = TRUE)
+
+# convert points to transects:
+r1_pts <- r1_pts %>%
+  filter(!is.na(transect_id)) %>%
+  group_by(transect_id) %>%
+  dplyr::arrange(order, .by_group = TRUE) %>%
+  ungroup()
+
+# covert to lines
+processed_transects <- make_lines(GPSPoints = r1_pts,
+                                  #GPSTracks = all_tracks,
+                                  Transects = transect_layout,
+                                  method = "pts2lines",
+                                  sortby = "order", #"tracklog",
+                                  tBuffer = 30, PROJ = 3005) %>%
+  #mutate(mapunit12 = paste0(mapunit1,"_", mapunit2)) %>%
+  #mutate(mapunit12 = gsub("_NA","", mapunit12)) %>%
+  dplyr::select(-TID, ID, X, Y)
+
+st_write(processed_transects,  file.path(output_pnts_dir, "proc_remote_transects.gpkg"),
+         delete_layer = TRUE)
+
+```
+```{r convert data to points per raster}
+# convert the vector data to raster for sampling. Build key which retains the primary and secondary call 
+## import base raster of resolution required 
+
+res <- 5
+res_folder <- paste0(res, "m")
+
+raster_template <- raster(list.files(file.path(cov_dir, res_folder), pattern = ".tif", full.names = TRUE)[1])
+
+if("ID" %in% colnames(processed_transects) == FALSE){
+  print ("adding ID column")
+  processed_transects <- processed_transects %>% 
+    mutate(ID = seq(1, length(processed_transects$order), 1))
+}
+ 
+
+processed_transects_id <- st_drop_geometry(processed_transects)
+
+lBuff <- processed_transects %>% 
+  sf::st_buffer(., dist = 2.5, endCapStyle = "FLAT", joinStyle = "MITRE") %>%
+  sf::st_cast(.,"MULTIPOLYGON")
+
+rastAll <- fasterize(lBuff, raster_template, field = "ID")
+
+raster_points_xy <- as.data.frame(rasterToPoints(rastAll)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = 3005) %>%
+  merge(processed_transects_id, by.x = names(rastAll), by.y = "ID") 
+
+# format transect id names 
+stype = "remote"
+if(stype == "r1"){
+  raster_points_xy <- format_transect(raster_points_xy) }
+
+st_write(raster_points_xy, file.path(output_pnts_dir,  
+                                paste0(stype, "_transect_all_pts.gpkg")), 
+                        delete_layer = TRUE)
+
+
+```
+
+```{r add adjacent cells}
+
+###Kiri's code to create dataset with adjacent cells
+source(here::here('_functions', '_add_neighbours.R'))
+testrast <- terra::rast(file.path(cov_dir,"5m/template.tif"))
+allPts <- add_neighbours(raster_points_xy, testrast) 
+
+# raster_points_xy <- st_read(file.path(AOI_dir, "./2_sample_design/stage1_StudyDesign/training_pts/s1_deception_pts_2021.gpkg"))
+# allPts <- add_neighbours(raster_points_xy, testrast)
+```
+
+```{r attribute all points}
+require(tictoc)
+res_folder = "5m"
+
+cov_dat <- terra::rast(list.files(file.path(cov_dir, res_folder), pattern = ".tif$", 
+                            full.names = TRUE))
+# tic()
+# atts <- terra::extract(cov_dat, allPts)
+# att_all <- cbind(st_as_sf(allPts), atts)
+# toc()
+
+tic()
+   all_pts_attributed <- allPts %>% 
+    cbind(terra::extract(cov_dat, .)) 
+toc()   
+
+  extra_transects <- sf::st_as_sf(all_pts_attributed)
+  #cbind(exactextractr::exact_extract(cov_dat, .)) 
+  st_write(extra_transects, dsn = file.path(output_cleaned_dir,  "r1_neighbours_att.gpkg"), delete_layer = TRUE)
+  
+# st_write(att_all,"r1_clean_neighbours_allatts.gpkg") ###final dataset
+# #unattributed_files <- unattributed_files[8:14]
+# 
+# for(i in unattributed_files) {
+#   #i = unattributed_files[1]
+#   all_pts_attributed <- st_read(i, quiet = TRUE) %>%    
+#     cbind(raster::extract(cov_dat, .)) 
+#   
+#    st_write(all_pts_attributed, dsn = file.path(final_path, "att_5m_trim", basename(i)), delete_layer = TRUE)
+#   
+#}
+
+
+
+```
+

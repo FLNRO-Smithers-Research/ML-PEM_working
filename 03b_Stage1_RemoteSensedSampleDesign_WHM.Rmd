@@ -1,0 +1,384 @@
+---
+title: "Stage 1 Sample Design for Remote Sensed Transects for Training data and Accuracy Assessment of Forest vs Non forest map units"
+Methods author: "Will MacKenzie"
+Script authors: "Kiri Daust; Will MacKenzie" 
+date: "7/18/2019"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+
+
+## Introduction
+A trial to generate transect samples for remote sensed sampling of forest/non-forest class/clearcut for a separate for/non-for prediction.
+Use BGC, LiDAR, NDVI as covariates.
+
+
+
+```{r global_options, include=FALSE}
+require(knitr)
+
+```
+
+
+```{r setup, include=FALSE}
+rm(list = ls())
+
+library(raster)
+library(sf)
+library(fasterize)
+library(gdistance)
+library(tidyverse)
+library(LearnGeom)
+library(stars)
+library(plyr)
+library(data.table)
+library(reticulate)
+#devtools::install_github("kdaust/clhs") 
+#devtools::install_github ("pierreroudier/clhs") 
+
+library(clhs)
+library(foreach)
+source(here::here('_functions', '_Transect_Functions.R'))
+
+```
+
+```{r setup user directories}
+# input parameters
+
+#AOI <- "KIC_SE"
+#AOI <- "KIC_SW"
+#AOI <- "KIC_NE"
+#AOI <- "Deception"
+AOI <- "BoundaryTSA"
+#AOI <- "DateCreek"
+#AOI <- "WilliamsLake"
+#AOI <- "OldFort"
+#AOI <- "Baboon"
+#AOI <- "Buck"
+#AOI <- "Wetzinkwa"
+#AOI <- "PeterHope"
+
+map_res <- 25 # Defines resolution of map to use for cLHS
+transect_length <- 250 # Define the length of triangle on each side
+use_trim = FALSE
+
+
+use_heli <- FALSE # Determines whether there are helicopter accessible points that can be used for sampling. 
+
+map_res_character <- paste0(map_res, "m")
+AOI.dir <- file.path(paste0(AOI, "_AOI"))
+shapes_path <- file.path(AOI.dir, "0_raw_inputs", "base_layers")
+
+
+if(use_trim == T){
+ 
+  print("using trim for DEM")
+  raster_path <- file.path(AOI.dir, "1_map_inputs", "covariates", paste0(map_res_character, "_trim")) 
+  
+  }else{
+
+  raster_path <- file.path(AOI.dir, "1_map_inputs", "covariates", map_res_character)
+}
+
+s1_path <- file.path(AOI.dir, "2_sample_design", "stage1_StudyDesign", "training_pts")
+out_path <- file.path(AOI.dir, "2_sample_design", "stage1_remoteTransectsDesign")
+ifelse(!dir.exists(out_path), dir.create(out_path, recursive = TRUE), FALSE)
+    
+sampling_raw_folder <- file.path(out_path, "input_raster")
+clhs_outpath <- file.path(out_path, "clhs_sample_plans")
+
+
+# radius of exclusion around points to prevent overlap of secondary transects
+centroid_distance <- 500
+
+## Gives the minimum distance cLHS points will be located
+rad_exclusion <- 1500
+#num_slices <- round(num_samples/slice_size)
+
+```
+
+## Step 2. Select and Stack Spatial Data Layers for cLHS
+Covariates for layout are:
+BGC to ensure spread across all BGCs 
+p90 converted into 2 classes <10m and > 10m and sieved to minimum 10 pixels
+Sentinel_2 savi for soil adjusted ndvi 6 k-means classes: These sort of equate to bare earth, water, deciduous/herbaceous, conifer
+For Deception a k-means was run in Qgis to create the six classes (WHM)
+We want to sample forested vs non-forested (p90 height works OK for this)
+Within forested: closed conifer, open conifer, deciduous. (maybe sparse treed?)
+within non-forested: Water, Bare earth, low conifer, low herbaceous/deciduous
+
+For date creek values approx = 
+<0.2 = water
+0.75 = bare earth
+1.13 = coniferous
+ greater than 1.13 = deciduous/herbaceous
+
+```{r Create BaseLayer stack, echo=F}
+# read in and stack landscape scale covariates 
+#raster_path = "./Deception_AOI/2_sample_design/stage1_remoteTransectsDesign/inputs"
+  #anc_layers <- c("dah_3class.tif", "mrvbf_LS_s.tif", "landform_stt.tif") 
+
+bgc <- rast(file.path(raster_path, "bgc.tif"))
+savi <- rast(file.path(raster_path, "sen_savi_6Class.tif"))
+p90_classes <- rast(file.path(raster_path, "p90_classes.tif"))
+
+savi <- terra::resample(savi, bgc)
+  anc_layers <- c(savi, p90_classes)
+ancDat <- rast(list(anc_layers))
+  layerNames <- c("SAVI","p90Height") 
+  names(ancDat) <- layerNames
+#ancDat2 <- raster(ancDat)
+ AOI.shp <-  st_read(file.path(shapes_path, "AOI.gpkg"))
+  AOI_buff <- st_buffer(AOI.shp, dist = -150)
+    AOI_buff <- vect(AOI_buff)
+ 
+ancDat <- terra::mask(ancDat, AOI_buff)
+#ancDat <- raster(ancDat)
+  
+  
+```
+
+## Step 3. Create Exclusion Layer of No-Sample Areas
+
+We are placing cLHC locations as centre points for 250m per-side transect triangles. The radius of a circle that will encompass and rotation of the triangle is 144m. We mask the spatial layers with an exclusion layer created from buffering features we do not wish to traverse by this radius. cLHS this masked spatial layer ensures that the placement of centre points from the cLHS will not result in traverses overrunning unsampleable lakes, roads, etc.  
+We apply a buffer around roads to 175m to account for any wider right-of-ways. 
+
+
+## Step 6. Run Sliced cLHS
+
+A cLHS can now be run on this constrained sample space and any point selected will be support a valid transect no matter the rotation. 
+cLHS sets are generated for each subzone individually.
+We apply a minimum 1000m spacing between cLHS points to prevent possible overlap of paired transects.
+  
+We created five cLHS 'slices' of 5 sites (n=25) for sampling. Each slice represents a cLHS independently so all sites from a slice must be sampled. Strictly speaking the slices must be sampled in order to maintain LHS structure as well (i.e. 1 + 2 + 3 = LHS but 1 + 2 + 4 may not be LHS). A progressive cLHS procedure has been proposed that makes any combination of slices maintain LHC structure.
+
+Additional new cLHS slices can be created after the generation of the original run using the 'include' parameter in the cLHS function. Where sampling may involve helicopter access, additional slices could be added using a cost layer where landable clearings rather than roads are the zero cost starting points.
+
+```{r}
+# generate slices clhs per bgc to generate sample points - where there are no prvios points to consider. Use this script when starting from scratch. 
+
+# Note if you have points that were previously used that you want to incorporate into an already set up structure then see code below. 
+
+clhs_outpath <- file.path(out_path, "clhs_sample_plans")
+ifelse(!dir.exists(clhs_outpath), dir.create(clhs_outpath, recursive = TRUE), FALSE)
+
+sample_layers_masked <- ancDat
+   
+stage1_buff <-  st_read(file.path(s1_path, "transect_layout_s1.gpkg"))# %>%    
+   
+#stage1_buff <-  st_read(file.path(raster_path, "transect_layout_deception_final.gpkg"))# %>% as_Spatial()
+   #stage1_buff <- st_buffer(stage1_buff, dist = -150) %>% as_Spatial
+stage1_buff <- vect(stage1_buff) %>% buffer(150)
+ 
+sample_layers_masked <- terra::mask(sample_layers_masked , stage1_buff, inverse = TRUE)
+sample_layers_masked <- raster(sample_layers_masked)
+  # generate clhs points
+  paired_distance <- 100
+  num_samples <- 100   # total no of samples wanted
+  slice_size <- 10     # SIZE OF THE  slice (ie 5 = size sites per slice)
+  rerun <- 0
+  num_slices <- round(num_samples/slice_size)
+  # 
+  lays <- sample_layers_masked 
+  
+  
+  
+  # create a empty sf object and add points
+  tmp <- st_sfc()
+  class(tmp)[1] <- "sfc_POINT" # for points
+  sample_points <- st_sf(DAH=integer(0),
+                     MRVBF=integer(0),
+                     LFC = integer(0),
+                     cost=integer(0),
+                     slice_num = integer(0), geometry=tmp)%>%
+   st_set_crs(3005)
+  
+ 
+  for(i in 1:num_slices){ # For each slice, perform cLHS (if there is sampleable area left from previous slices)
+     #i <- 1
+    #if(nrow(sample_points) < slice_size*i){
+      
+      clhs_slice <- clhs(lays,
+                         size = slice_size,
+                         iter = 1000,
+                         simple = FALSE,
+                         progress = TRUE,
+                         cost= NULL,
+                         use.cpp = F) # Run cLHS on the sampleable area
+      
+      clhs_sampled <- st_as_sf(clhs_slice$sampled_data) %>%
+        mutate(final_obj_continuous = clhs_slice$final_obj_continuous) %>% 
+        mutate(slice_num = i)
+      
+  
+      clhs_sampled_buff <- st_buffer(clhs_sampled, dist = rad_exclusion) # Extract and buffer the cLHS points
+      lays <- mask(lays, clhs_sampled_buff, inverse = TRUE)      # Mask the sampleable area
+      sample_points <- bind_rows(sample_points, clhs_sampled) 
+      }
+  #   }
+  #}  
+  
+sample_points
+
+
+
+xx <- sample_points
+sample_points <- xx
+
+#rownames(sample_points) <- NULL
+#sample_points$subzone <- b
+unique_slices <- as.data.frame(table(sample_points$slice_num))
+unique_slices$order =  seq(1:num_slices)
+unique_slices$Var1 = as.numeric(as.character(unique_slices$Var1))
+
+sample_points <- sample_points %>%
+  left_join(unique_slices, by = c("slice_num" = "Var1")) %>%
+  dplyr::select(-c(Freq, slice_num)) %>%
+  dplyr::rename(slice_num = order) %>%
+  arrange(slice_num)
+#sort(sample_points$slice_num)
+
+unique_slices <- as.data.frame(table(sample_points$slice_num))
+
+for(i in 1:length(unique(sample_points$slice_num))){ # Adds appropriate slice number
+  j <- unique(sample_points$slice_num)[i]
+  if(j == unique_slices[i, 1]){
+    j <- which(sample_points$slice_num == as.numeric(j))
+    for(k in 1:length(j)){
+      l <- j[k]
+      sample_points[l, "slice_size"] <- k
+    }
+  }
+}
+
+sample_points <- mutate(sample_points, total = 1:nrow(sample_points)) %>% 
+  mutate(id = paste0(slice_num, ".", slice_size, "_", total)) %>%
+  dplyr::select(names(.)[!(names(.) %in% names(lays))])
+
+st_write(sample_points, dsn = file.path(clhs_outpath, "clhs_pts.gpkg"), append = F, driver = "GPKG")  
+
+```
+
+
+## Step 8. Generate Transects Around cLHS and Paired Points
+
+#The cLHS and paired points are used as the __centre point__ for the 250m-per-side transect triangles. For Stage 1 sampling, we rotate each of the transects randomly. Alternatively, optimized rotation to maximize diversity of the traverse can be applied for other purposes such as map improvement sampling (Stage 2).
+
+```{r}
+# Second, create triangle around each point and randomly rotate
+
+all_triangles <- st_sf(st_sfc()) %>% st_set_crs(3005)
+
+for(i in 1:nrow(sample_points)){
+  #i = 1
+  poc <- sample_points[i, ]
+ 
+  triangle <- Tri_build(id = poc$id, x =  st_coordinates(poc)[1], y =  st_coordinates(poc)[2])
+  random_rotation <- runif(1, min = 0, max = 360)
+  triangle <- rotFeature(triangle, poc, random_rotation)
+  
+#  if(is.na(poc$rotation)){
+#    triangle$id <- poc$id
+#  } else {
+#    triangle$id <- paste(poc$id, poc$rotation, sep = "_")
+#  }
+  all_triangles <- rbind(all_triangles, triangle)
+}
+
+# check that all triangles fall within mask poly 
+
+#paired_triangles <- all_triangles[all_triangles$id %in% paired_sample$id,]
+
+# #####write Transects####################
+# 
+# st_write(all_points, file.path(transect_out_path, clhs_set), #"s1_sampling.gpkg"), 
+#          layer = paste0(b,"_points_all"), delete_layer = TRUE)
+# 
+st_write(all_triangles, file.path(clhs_outpath, "remote_clHS_samples.gpkg"),
+                                  layer = "transects_all", delete_layer = TRUE)
+####write buffer#########################
+triangle_buff <- st_buffer(all_triangles, dist = 10)
+
+st_write(triangle_buff, file.path(clhs_outpath, "remote_sampling.gpkg"),
+                                  layer = "transects_all_buffered", delete_layer = TRUE)
+
+# st_write(paired_sample, file.path(transect_out_path,clhs_set),# "s1_sampling.gpkg"), 
+#          layer = paste0(b,"_points"),  delete_layer = TRUE)
+# 
+plot(triangle_buff)
+
+
+```
+
+```{r generate sample transects for extra points}
+
+## import created extra points file
+sample_points <- st_read(file.path(out_path, "clhs_sample_plans", "ExtraTransectsPoints.gpkg")) %>% rownames_to_column("id")
+all_triangles <- st_sf(st_sfc()) %>% st_set_crs(3005)
+
+for(i in 1:nrow(sample_points)){
+  #i = 1
+  poc <- sample_points[i, ]
+ 
+  triangle <- Tri_build(id = poc$id, x =  st_coordinates(poc)[1], y =  st_coordinates(poc)[2])
+  random_rotation <- runif(1, min = 0, max = 360)
+  triangle <- rotFeature(triangle, poc, random_rotation)
+  
+#  if(is.na(poc$rotation)){
+#    triangle$id <- poc$id
+#  } else {
+#    triangle$id <- paste(poc$id, poc$rotation, sep = "_")
+#  }
+  all_triangles <- rbind(all_triangles, triangle)
+}
+
+# check that all triangles fall within mask poly 
+
+#paired_triangles <- all_triangles[all_triangles$id %in% paired_sample$id,]
+
+ 
+
+# #####write Transects####################
+# 
+st_write(sample_points, file.path(clhs_outpath, "extra_transects.gpkg"),
+                                  layer = "extrapoints", delete_layer = TRUE)
+# 
+st_write(all_triangles, file.path(clhs_outpath, "extra_transects.gpkg"),
+                                  layer = "extratransects", delete_layer = TRUE)
+####write buffer#########################
+triangle_buff <- st_buffer(all_triangles, dist = 10)
+
+st_write(triangle_buff, file.path(clhs_outpath, "extra_transects.gpkg"),
+                                  layer = "extratransect_buffers", delete_layer = TRUE)
+
+# st_write(paired_sample, file.path(transect_out_path,clhs_set),# "s1_sampling.gpkg"), 
+#          layer = paste0(b,"_points"),  delete_layer = TRUE)
+# 
+plot(triangle_buff)
+
+
+```
+
+
+``` {r cLHS Map, tidy = TRUE, echo=F, out.width = "90%"}
+require(tmap)
+tbound <- tm_shape(AOI.shp) + tm_borders()
+#tbound <-  tm_borders()
+#tcostclip <- tm_shape(acost) + tm_raster(palette = "YlGnBu", n = 20, contrast = c(0, 1),  legend.show = FALSE)
+tclhs <- tm_shape(sample_points) + tm_dots(palette = "Set1", group = "slice_num", scale = 3)
+tclhsmap <-   tclhs
+
+tclhs2 <- tm_shape(all_triangles) + tm_lines(palette = "Set1", group = "slice_num", scale = 1)
+tclhsmap2 <-   tclhs2
+
+tclhs3 <- tm_shape(triangle_buff) + tm_polygons(palette = "Set1", group = "slice_num", scale=1)
+tclhsmap3 <-   tclhs3
+
+textramap <- tbound + tclhs + tclhs2 + tclhs3
+textramap 
+```
+
+

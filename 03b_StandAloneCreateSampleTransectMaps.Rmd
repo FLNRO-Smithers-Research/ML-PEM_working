@@ -1,0 +1,46 @@
+---
+title: "Adhoc Transect Map Creation"
+author: "Will MacKenzie and Gen Perkins"
+date: "20/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Generate stand alone triangels from a sample plan. This can be used to map replacement sites or heli sites. 
+
+```{r function}
+
+library(foreach)
+library(plyr)
+library(tidyverse)
+library(sf)
+require(here)
+source(here::here('_functions', '_Transect_Functions.R'))
+source(here::here('_functions', '_pem_create_maps.R'))
+
+
+#AOI <- "DateCreek"
+#aoi <- "ESSFwv"
+AOI <- "Deception" # set study are AOI 
+aoi <- "ESSFmcw" # set the bgc of interest
+
+AOI.dir <- file.path(paste0(AOI, "_AOI"))
+prev_points <- file.path(AOI.dir, "2_sample_design", "stage1_StudyDesign","transect_layout","Essfmcw_heli")
+
+#replacment_shp <-"Wetzinkwa_AOI/2_sample_design/stage1_StudyDesign/transect_layout/replacement_sites.shp"
+#replacment_shp <-"DateCreek_AOI/2_sample_design/stage1_StudyDesign/transect_layout/replacement_site/clhs_pts_heli_3_ESSFwv.gpkg"
+replacment_shp <-"Deception_AOI/2_sample_design/stage1_StudyDesign/transect_layout/Essfmcw_heli/clhs_pts/heli_clhs_2022v2.gpkg"
+
+
+ptCoords <- st_read(replacment_shp)  %>%
+  mutate(ID = id) %>%
+  #dplyr::select(-c(fid, id))
+ dplyr::select(-c(id)) # , lat, long))
+
+  
+pem_create_maps(ptCoords, out_name = file.path(prev_points, "s1_sampling_2022.gpkg"))
+
+```
